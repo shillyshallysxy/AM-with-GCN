@@ -1,20 +1,21 @@
 # -*- coding: utf-8 -*-
+import csv
 import os
+import string
 from collections import Counter
 
 import nltk
 import numpy as np
-import scipy.io
-import string
-from zhon.hanzi import punctuation
-import unicodedata
-from sklearn.decomposition import PCA, TruncatedSVD
+from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler
+from zhon.hanzi import punctuation
+
+tokenizer = nltk.word_tokenize
 
 log_or_print = print
-entities = {"MajorClaim": 1, "Claim": 2, "Premise": 3}
-relations = {"supports": 1, "attacks": 2}
-attributes = {"Stance": 1}
+entities = {"PAD": 0, "MajorClaim": 1, "Claim": 2, "Premise": 3, "None": 4}
+relations = {"PAD": 0, "supports": 1, "attacks": 2, "None": 4}
+attributes = {"PAD": 0, "Stance": 1, "None": 4}
 trans_table = {ord(f): ord(t) for f, t in zip(
      u'，。！？【】（）％＃＠＆１２３４５６７８９０‘’“”""',
      u',.!?[]()%#@&1234567890\'\'\'\'\'\'')}
@@ -98,6 +99,22 @@ def load_elecdeb60to16(data_path='data/stackoverflow/'):
 
 def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0"):
     detail_data_path = os.path.join(data_path, "brat-project-final")
+    # 读取训练测试集分割
+    train_test_split_path = os.path.join(data_path, "train-test-split.csv")
+    train_test_split = dict()
+    with open(train_test_split_path, 'r', encoding="utf-8") as f_:
+        reader_ = csv.reader(f_)
+        next(reader_)
+        for row_ in reader_:
+            row_ = row_[0].lower()
+            row_ = row_.replace("'", "")
+            row_ = row_.replace("\"", "")
+            row_ = row_.split(";")
+            try:
+                train_test_split[row_[1]].append(row_[0])
+            except KeyError:
+                train_test_split[row_[1]] = list()
+                train_test_split[row_[1]].append(row_[0])
     data_list = os.listdir(detail_data_path)
     accept_types = ["txt", "ann", ]
     data_dict = dict()
@@ -125,9 +142,10 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0"):
                     data_dict[k_][accept_type_] = parse_ann_content(data_content_)
                 else:
                     log_or_print("during loading data content: unknown type: {}".format(accept_type_))
+    # 做单词级别的序列标注
     for k_, v_ in data_dict.items():
-        data_dict[k_]["entities_label_char"] = np.zeros(len(v_["txt"][2]), dtype=np.int)
-        data_dict[k_]["entities_label_word"] = np.zeros(len(v_["txt"][0]), dtype=np.int)
+        data_dict[k_]["entities_label_char"] = np.ones(len(v_["txt"][2]), dtype=np.int)*entities["None"]
+        data_dict[k_]["entities_label_word"] = np.ones(len(v_["txt"][0]), dtype=np.int)*entities["None"]
         for a_k_, a_v_ in v_["ann"].items():
             if a_v_["type"] in entities:
                 end = int(a_v_["content"][1])
@@ -137,7 +155,7 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0"):
                 data_dict[k_]["entities_label_char"][start: end] = entities[a_v_["type"]]
         now_ind_ = 0
         for ind_, word_ in enumerate(v_["txt"][0]):
-
+            # 一些规则，但鲁棒性不行
             if word_[0] in string.punctuation or word_[0] in punctuation:
                 now_ind_ -= 1
             if word_ == "n\'t":
@@ -148,6 +166,7 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0"):
 
             label_ = data_dict[k_]["entities_label_char"][now_ind_: now_ind_ + len(word_)]
             debug_ = v_["txt"][2][now_ind_: now_ind_ + len(word_)]
+            # 自适应调整匹配
             if debug_ != word_:
                 search_range = 2
                 bias = -search_range
@@ -162,14 +181,24 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0"):
 
             now_ind_ += (len(word_)+1)
 
-    essays = [(eassy_["txt"][0], eassy_["entities_label_word"]) for eassy_ in data_dict.values()]
-    return essays
+    essays = list()
+    essays_labels = list()
+    essays_test = list()
+    essays_test_labels = list()
+    for name_, eassy_ in data_dict.items():
+        if name_ in train_test_split["train"]:
+            essays.append(eassy_["txt"][0])
+            essays_labels.append(eassy_["entities_label_word"])
+        elif name_ in train_test_split["test"]:
+            essays_test.append(eassy_["txt"][0])
+            essays_test_labels.append(eassy_["entities_label_word"])
+    return (essays, essays_labels), (essays_test, essays_test_labels)
 
 
 def parse_txt_content(txt_content: list):
     txt_content = [txt_content_.translate(trans_table) for txt_content_ in txt_content]
-    title = nltk.word_tokenize(txt_content[0])
-    content = nltk.word_tokenize(" ".join(txt_content))
+    title = tokenizer(txt_content[0])
+    content = tokenizer(" ".join(txt_content))
     sentence = nltk.sent_tokenize(" ".join(txt_content[1:]))
     full_str = "".join(txt_content)
     return content, sentence, full_str, title
