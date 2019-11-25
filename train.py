@@ -1,37 +1,15 @@
 import modeling as bm
 import model as m
 from optimization import create_optimizer
-import logging
 from data2tfrecord import *
 import tensorflow.compat.v1 as tf
 import numpy as np
 tf.disable_v2_behavior()
 
-BERT_CONFIG_PATH = "./bert_config.json"
-MODEL_PATH = "./model/model.ckpt"
-
 bert_config = bm.BertConfig.from_json_file(BERT_CONFIG_PATH)  # 配置文件地址。
 
 
-def get_logger():
-    logging.basicConfig(filename="./base.log",
-                        format='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s',
-                        filemode='a',
-                        level=logging.INFO)
-
-    logger = logging.getLogger()
-    formatter = logging.Formatter('%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s')
-    file_handler = logging.FileHandler("./base.log")
-    file_handler.setFormatter(formatter)
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-    return logger
-
-
 def run_train():
-    logger = get_logger()
     if GLOVE:
         embedding = np.load(os.path.join(ROOT_PATH, EMBEDDING_NAME))
         bert_config.vocab_size = embedding.shape[0]
@@ -77,7 +55,7 @@ def run_train():
         num_warmup_steps = int(num_train_steps * bert_config.warmup_proportion)
         train_op = create_optimizer(posmodel.loss, bert_config.init_lr, num_train_steps, num_warmup_steps, False)
 
-        logger.info("**** Trainable Variables ****")
+        logger("**** Trainable Variables ****")
 
         # graph = tf.get_default_graph()
         # summary_write = tf.summary.FileWriter("./tensorboard/", graph)
@@ -94,8 +72,8 @@ def run_train():
 
             if iter_ % 50 == 0:
                 loss, acc, preds, targets = sess.run([posmodel.loss, posmodel.accuracy, posmodel.preds, posmodel.targets], feed_dict={handle: train_handle})
-                logger.info("[AM-POS] iter: {}\tloss: {}\tacc: {}".format(iter_, loss, acc))
-                logger.info("[AM-POS] iter: {}\ntarget: {}\npreds: {}".format(iter_, targets[0, :], preds[0, :]))
+                logger("[AM-POS] iter: {}\tloss: {}\tacc: {}".format(iter_, loss, acc))
+                logger("[AM-POS] iter: {}\ntarget: {}\npreds: {}".format(iter_, targets[0, :], preds[0, :]))
         saver.save(sess, MODEL_PATH)
 
 

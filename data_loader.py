@@ -8,10 +8,9 @@ import nltk
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler
+from HParameters import *
 
 tokenizer = nltk.word_tokenize
-
-log_or_print = print
 
 entities = {"PAD": 0, "MajorClaim": 1, "Claim": 2, "Premise": 3, "None": 0}
 pos = {"PAD": 0, "Begin": 1, "Middle": 2, "End": 3, "None": 0}
@@ -119,7 +118,7 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
     data_list = os.listdir(detail_data_path)
     accept_types = ["txt", "ann", ]
     data_dict = dict()
-    log_or_print("loading data path...")
+    logger("loading data path...")
     for data_ in data_list:
         if data_.startswith("essay"):
             essay_name_, _, essay_type_ = data_.rpartition('.')
@@ -130,8 +129,8 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
                     data_dict[essay_name_] = dict()
                     data_dict[essay_name_][essay_type_] = data_
             else:
-                log_or_print("during loading data path: unknown type: {}".format(data_))
-    log_or_print("loading data content...")
+                logger("during loading data path: unknown type: {}".format(data_))
+    logger("loading data content...")
     for k_, v_ in data_dict.items():
         for accept_type_ in accept_types:
             data_name_ = v_[accept_type_]
@@ -142,7 +141,7 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
                 elif accept_type_ == "ann":
                     data_dict[k_][accept_type_] = parse_ann_content(data_content_, lower=lower)
                 else:
-                    log_or_print("during loading data content: unknown type: {}".format(accept_type_))
+                    logger("during loading data content: unknown type: {}".format(accept_type_))
     # 做单词级别的序列标注
     for k_, v_ in data_dict.items():
         data_dict[k_]["entities_label_char"] = np.ones(len(v_["txt"][2]), dtype=np.int)*entities["None"]

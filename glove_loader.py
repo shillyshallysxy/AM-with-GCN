@@ -5,8 +5,7 @@ from tqdm import tqdm
 import shutil
 from sys import platform
 
-VECTOR_DIM = 200
-GLOVE_NAME = "glove.6B.{}d.txt".format(VECTOR_DIM)
+from HParameters import *
 
 
 # 计算行数，就是单词数

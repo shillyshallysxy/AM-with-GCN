@@ -3,13 +3,8 @@ import data_loader as dl
 import tensorflow.compat.v1 as tf
 import os
 from tqdm import tqdm
+from HParameters import *
 tf.disable_v2_behavior()
-
-ROOT_PATH = "./temp"
-TRAIN_DATA_NAME = "essayv2_train.tfrecord"
-TEST_DATA_NAME = "essayv2_test.tfrecord"
-EMBEDDING_NAME = "glove_embedding.npy"
-GLOVE = True
 
 
 def write_binary(record_name, texts_, label_):
@@ -56,7 +51,7 @@ if __name__ == "__main__":
     train_texts, train_labels = train_data
     test_texts, test_labels = test_data
     if GLOVE:
-        dl.log_or_print("loading glove")
+        logger("loading glove")
         word_dict = th.load_glove()
         import numpy as np
         np.save(os.path.join(ROOT_PATH, EMBEDDING_NAME), word_dict.vectors)
