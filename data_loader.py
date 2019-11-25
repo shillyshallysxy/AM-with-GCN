@@ -8,7 +8,6 @@ import nltk
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler
-from zhon.hanzi import punctuation
 
 tokenizer = nltk.word_tokenize
 
@@ -156,7 +155,7 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0"):
         now_ind_ = 0
         for ind_, word_ in enumerate(v_["txt"][0]):
             # 一些规则，但鲁棒性不行
-            if word_[0] in string.punctuation or word_[0] in punctuation:
+            if word_[0] in string.punctuation:
                 now_ind_ -= 1
             if word_ == "n\'t":
                 now_ind_ -= 1
