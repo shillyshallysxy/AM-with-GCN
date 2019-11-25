@@ -142,10 +142,12 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
                     data_dict[k_][accept_type_] = parse_ann_content(data_content_, lower=lower)
                 else:
                     logger("during loading data content: unknown type: {}".format(accept_type_))
-    # 做单词级别的序列标注
+    # -------做单词级别的序列标注---------
     for k_, v_ in data_dict.items():
         data_dict[k_]["entities_label_char"] = np.ones(len(v_["txt"][2]), dtype=np.int)*entities["None"]
         data_dict[k_]["entities_label_word"] = np.ones(len(v_["txt"][0]), dtype=np.int)*entities["None"]
+        data_dict[k_]["entities_label_pos"] = np.ones(len(v_["txt"][0]), dtype=np.int)*entities["None"]
+        # 做字符集别的序列标注
         for a_k_, a_v_ in v_["ann"].items():
             if a_v_["type"] in entities:
                 end = int(a_v_["content"][1])
@@ -153,7 +155,9 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
                 debug_ = v_["txt"][2][start:end]
                 assert debug_ == a_v_["article"]
                 data_dict[k_]["entities_label_char"][start: end] = entities[a_v_["type"]]
+        # 做单词级别的序列标注
         now_ind_ = 0
+        sustain = entities["None"]
         for ind_, word_ in enumerate(v_["txt"][0]):
             # 一些规则，但鲁棒性不行
             if word_[0] in string.punctuation:
@@ -178,6 +182,9 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
             assert debug_ == word_
             label_ = sorted(label_)[len(label_) // 2]
             data_dict[k_]["entities_label_word"][ind_] = label_
+
+            if label_ != entities["None"] and sustain != label_:
+                pass  # edit
 
             now_ind_ += (len(word_)+1)
 
