@@ -12,9 +12,11 @@ from sklearn.preprocessing import MinMaxScaler
 tokenizer = nltk.word_tokenize
 
 log_or_print = print
-entities = {"PAD": 0, "MajorClaim": 1, "Claim": 2, "Premise": 3, "None": 4}
-relations = {"PAD": 0, "supports": 1, "attacks": 2, "None": 4}
-attributes = {"PAD": 0, "Stance": 1, "None": 4}
+
+entities = {"PAD": 0, "MajorClaim": 1, "Claim": 2, "Premise": 3, "None": 0}
+pos = {"PAD": 0, "Begin": 1, "Middle": 2, "End": 3, "None": 0}
+relations = {"PAD": 0, "supports": 1, "attacks": 2, "None": 0}
+attributes = {"PAD": 0, "Stance": 1, "None": 0}
 trans_table = {ord(f): ord(t) for f, t in zip(
      u'，。！？【】（）％＃＠＆１２３４５６７８９０‘’“”""',
      u',.!?[]()%#@&1234567890\'\'\'\'\'\'')}
@@ -96,7 +98,7 @@ def load_elecdeb60to16(data_path='data/stackoverflow/'):
     return XX, y
 
 
-def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0"):
+def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
     detail_data_path = os.path.join(data_path, "brat-project-final")
     # 读取训练测试集分割
     train_test_split_path = os.path.join(data_path, "train-test-split.csv")
@@ -136,9 +138,9 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0"):
             with open(os.path.join(detail_data_path, data_name_), 'r', encoding="utf-8") as f_:
                 data_content_ = f_.readlines()
                 if accept_type_ == "txt":
-                    data_dict[k_][accept_type_] = parse_txt_content(data_content_)
+                    data_dict[k_][accept_type_] = parse_txt_content(data_content_, lower=lower)
                 elif accept_type_ == "ann":
-                    data_dict[k_][accept_type_] = parse_ann_content(data_content_)
+                    data_dict[k_][accept_type_] = parse_ann_content(data_content_, lower=lower)
                 else:
                     log_or_print("during loading data content: unknown type: {}".format(accept_type_))
     # 做单词级别的序列标注
@@ -194,8 +196,10 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0"):
     return (essays, essays_labels), (essays_test, essays_test_labels)
 
 
-def parse_txt_content(txt_content: list):
+def parse_txt_content(txt_content: list, lower):
     txt_content = [txt_content_.translate(trans_table) for txt_content_ in txt_content]
+    if lower:
+        txt_content = [txt_content_.lower() for txt_content_ in txt_content]
     title = tokenizer(txt_content[0])
     content = tokenizer(" ".join(txt_content))
     sentence = nltk.sent_tokenize(" ".join(txt_content[1:]))
@@ -203,7 +207,7 @@ def parse_txt_content(txt_content: list):
     return content, sentence, full_str, title
 
 
-def parse_ann_content(ann_content: list):
+def parse_ann_content(ann_content: list, lower):
     ann_content = [ann_content_.translate(trans_table) for ann_content_ in ann_content]
     res = dict()
     for ann_content_ in ann_content:
@@ -211,7 +215,10 @@ def parse_ann_content(ann_content: list):
         ann_content_ = ann_content_.split("\t")
         ann_type_ = ann_content_[1].split(" ")[0]
         if ann_type_ in entities:
-            res[ann_content_[0]] = {"type": ann_type_, "content": ann_content_[1].split(" ")[1:], "article": ann_content_[2]}
+            article = ann_content_[2]
+            if lower:
+                article = article.lower()
+            res[ann_content_[0]] = {"type": ann_type_, "content": ann_content_[1].split(" ")[1:], "article": article}
         elif ann_type_ in relations:
             ann_role_ = [str(ann_).partition(":")[-1] for ann_ in ann_content_[1].split(" ")[1:]]
             res[ann_content_[0]] = {"type": ann_type_, "content": ann_role_}

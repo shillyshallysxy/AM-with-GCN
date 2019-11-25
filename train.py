@@ -4,9 +4,11 @@ from optimization import create_optimizer
 import logging
 from data2tfrecord import *
 import tensorflow.compat.v1 as tf
+import numpy as np
 tf.disable_v2_behavior()
 
 BERT_CONFIG_PATH = "./bert_config.json"
+MODEL_PATH = "./model/model.ckpt"
 
 bert_config = bm.BertConfig.from_json_file(BERT_CONFIG_PATH)  # 配置文件地址。
 
@@ -30,6 +32,10 @@ def get_logger():
 
 def run_train():
     logger = get_logger()
+    if GLOVE:
+        embedding = np.load(os.path.join(ROOT_PATH, EMBEDDING_NAME))
+        bert_config.vocab_size = embedding.shape[0]
+
     with tf.Session() as sess:
         padding_shape = ([bert_config.max_length], [bert_config.max_length], [bert_config.max_length])
         data_set_train = get_dataset(TRAIN_DATA_NAME)
@@ -62,7 +68,7 @@ def run_train():
 
         transformer_output = model.get_sequence_output()
 
-        posmodel = m.POSModel(bert_config, 3)
+        posmodel = m.POSModel(bert_config, 4)
 
         posmodel(transformer_output, targets, input_mask)
 
@@ -73,14 +79,24 @@ def run_train():
 
         logger.info("**** Trainable Variables ****")
 
+        # graph = tf.get_default_graph()
+        # summary_write = tf.summary.FileWriter("./tensorboard/", graph)
+        # summary_write.close()
         sess.run(tf.global_variables_initializer())
+        saver = tf.train.Saver()
+
+        if GLOVE:
+            tf.assign(model.embedding_table, embedding)
 
         for iter_ in range(num_train_steps):
-            sess.run(train_op, feed_dict={handle: train_handle})
             # a, b, c = sess.run([input_ids, input_mask, targets], feed_dict={handle: train_handle})
+            sess.run(train_op, feed_dict={handle: train_handle})
+
             if iter_ % 50 == 0:
-                loss, acc = sess.run([posmodel.loss, posmodel.accuracy], feed_dict={handle: train_handle})
+                loss, acc, preds, targets = sess.run([posmodel.loss, posmodel.accuracy, posmodel.preds, posmodel.targets], feed_dict={handle: train_handle})
                 logger.info("[AM-POS] iter: {}\tloss: {}\tacc: {}".format(iter_, loss, acc))
+                logger.info("[AM-POS] iter: {}\ntarget: {}\npreds: {}".format(iter_, targets[0, :], preds[0, :]))
+        saver.save(sess, MODEL_PATH)
 
 
 if __name__ == "__main__":

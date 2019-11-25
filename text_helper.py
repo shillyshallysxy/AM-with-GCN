@@ -7,6 +7,7 @@ import string
 import os
 import collections
 from tqdm import tqdm
+import glove_loader
 
 
 # Normalize text
@@ -40,36 +41,49 @@ def build_dictionary(sentences, vocabulary_size=60000):
     return word_dict
 
 
+def load_glove():
+    glove = glove_loader.load_glove()
+    return glove
+
+
 # Turn text data into lists of integers from dictionary
-def text_to_numbers(sentences, word_dict, ensure=None):
+def text_to_numbers(sentences, word_dict, glove=False):
     # Initialize the returned data
     data = []
+    if glove:
+        word_dict = word_dict.vocab
+
     for i, sentence in tqdm(enumerate(sentences)):
         sentence_data = []
         # For each word, either use selected index or rare word index
         split_sentences = sentence
 
         for word in split_sentences:
-            if word in word_dict:
-                word_ix = word_dict[word]
+            if glove:
+                if word in word_dict:
+                    word_ix = word_dict[word].index
+                else:
+                    word_ix = word_dict['unk'].index
             else:
-                word_ix = word_dict['[UNK]']
+                if word in word_dict:
+                    word_ix = word_dict[word]
+                else:
+                    word_ix = word_dict['[UNK]']
 
             sentence_data.append(word_ix)
-
-        if ensure is None:
-            data.append(sentence_data)
-        else:
-            if ensure[i] == len(sentence_data):
-                data.append(sentence_data)
-            else:
-                print(ensure[i], " doesn't match ", sentence_data)
+        data.append(sentence_data)
     return data
 
 
 # Turn text data into lists of integers from dictionary
-def numbers_to_text(sentences, word_dict):
-    word_dict = dict(zip(word_dict.values(), word_dict.keys()))
+def numbers_to_text(sentences, word_dict, glove=False):
+    if glove:
+        word_dict = word_dict.index2word
+        unk_str = 'unk'
+    else:
+        word_dict = dict(zip(word_dict.values(), word_dict.keys()))
+        unk_str = '[UNK]'
+
     # Initialize the returned data
     data = []
     for sentence in sentences:
@@ -80,7 +94,7 @@ def numbers_to_text(sentences, word_dict):
             if word in word_dict:
                 word_ix = word_dict[word]
             else:
-                word_ix = '[UNK]'
+                word_ix = unk_str
             sentence_data.append(word_ix)
         data.append(sentence_data)
     return data
