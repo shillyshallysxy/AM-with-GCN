@@ -8,9 +8,9 @@
 # 不忽略下面指定的文件类型
 !*.py
 !*.gitignore
+!*.json
 # !*.txt
 # !*.md
 # !*.vec
 # !*.dic
 # !*.mat
-# !*.json
