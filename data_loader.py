@@ -12,10 +12,10 @@ from HParameters import *
 
 tokenizer = nltk.word_tokenize
 
-entities = {"PAD": 0, "MajorClaim": 1, "Claim": 2, "Premise": 3, "None": 0}
-pos = {"PAD": 0, "Begin": 1, "Middle": 2, "End": 3, "None": 0}
-relations = {"PAD": 0, "supports": 1, "attacks": 2, "None": 0}
-attributes = {"PAD": 0, "Stance": 1, "None": 0}
+entities = {"PAD": 0, "MajorClaim": 1, "Claim": 2, "Premise": 3, "Other": 0}
+pos = {"PAD": 0, "Begin": 1, "Intermediate": 2, "End": 3, "Single": 4, "Other": 0}
+relations = {"PAD": 0, "supports": 1, "attacks": 2, "Other": 0}
+attributes = {"PAD": 0, "Stance": 1, "Other": 0}
 trans_table = {ord(f): ord(t) for f, t in zip(
      u'，。！？【】（）％＃＠＆１２３４５６７８９０‘’“”""',
      u',.!?[]()%#@&1234567890\'\'\'\'\'\'')}
@@ -144,9 +144,9 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
                     logger("during loading data content: unknown type: {}".format(accept_type_))
     # -------做单词级别的序列标注---------
     for k_, v_ in data_dict.items():
-        data_dict[k_]["entities_label_char"] = np.ones(len(v_["txt"][2]), dtype=np.int)*entities["None"]
-        data_dict[k_]["entities_label_word"] = np.ones(len(v_["txt"][0]), dtype=np.int)*entities["None"]
-        data_dict[k_]["entities_label_pos"] = np.ones(len(v_["txt"][0]), dtype=np.int)*entities["None"]
+        data_dict[k_]["entities_label_char"] = np.ones(len(v_["txt"][2]), dtype=np.int)*entities["Other"]
+        data_dict[k_]["entities_label_word"] = np.ones(len(v_["txt"][0]), dtype=np.int)*entities["Other"]
+        data_dict[k_]["entities_label_pos"] = np.ones(len(v_["txt"][0]), dtype=np.int)*entities["Other"]
         # 做字符集别的序列标注
         for a_k_, a_v_ in v_["ann"].items():
             if a_v_["type"] in entities:
@@ -157,7 +157,6 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
                 data_dict[k_]["entities_label_char"][start: end] = entities[a_v_["type"]]
         # 做单词级别的序列标注
         now_ind_ = 0
-        sustain = entities["None"]
         for ind_, word_ in enumerate(v_["txt"][0]):
             # 一些规则，但鲁棒性不行
             if word_[0] in string.punctuation:
@@ -183,23 +182,63 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
             label_ = sorted(label_)[len(label_) // 2]
             data_dict[k_]["entities_label_word"][ind_] = label_
 
-            if label_ != entities["None"] and sustain != label_:
-                pass  # edit
-
             now_ind_ += (len(word_)+1)
+        # POS
+        entities_labels_ = data_dict[k_]["entities_label_word"]
+        if entities_labels_[0] == entities["Other"]:
+            data_dict[k_]["entities_label_pos"][0] = pos["Other"]
+        else:
+            if entities_labels_[0] != entities_labels_[1]:
+                data_dict[k_]["entities_label_pos"][0] = pos["Single"]
+            else:
+                data_dict[k_]["entities_label_pos"][0] = pos["Begin"]
+        for ind_ in range(1, len(entities_labels_)-1):
+            if entities_labels_[ind_] == entities["Other"]:
+                data_dict[k_]["entities_label_pos"][ind_] = pos["Other"]
+            else:
+                if entities_labels_[ind_-1] != entities_labels_[ind_]:
+                    if entities_labels_[ind_] != entities_labels_[ind_+1]:
+                        data_dict[k_]["entities_label_pos"][ind_] = pos["Single"]
+                    else:
+                        data_dict[k_]["entities_label_pos"][ind_] = pos["Begin"]
+                else:
+                    if entities_labels_[ind_] != entities_labels_[ind_+1]:
+                        data_dict[k_]["entities_label_pos"][ind_] = pos["End"]
+                    else:
+                        data_dict[k_]["entities_label_pos"][ind_] = pos["Intermediate"]
+        if entities_labels_[-1] == entities["Other"]:
+            data_dict[k_]["entities_label_pos"][-1] = pos["Other"]
+        else:
+            if entities_labels_[-1] != entities_labels_[-2]:
+                data_dict[k_]["entities_label_pos"][-1] = pos["Single"]
+            else:
+                data_dict[k_]["entities_label_pos"][-1] = pos["End"]
+
+        # 做关系标注
+        for a_k_, a_v_ in v_["ann"].items():
+            if a_v_["type"] in relations:
+                pass
+        print(1)
+
+
 
     essays = list()
-    essays_labels = list()
+    essays_labels_word = list()
+    essays_labels_pos = list()
     essays_test = list()
-    essays_test_labels = list()
+    essays_test_labels_word = list()
+    essays_test_labels_pos = list()
     for name_, eassy_ in data_dict.items():
         if name_ in train_test_split["train"]:
             essays.append(eassy_["txt"][0])
-            essays_labels.append(eassy_["entities_label_word"])
+            essays_labels_word.append(eassy_["entities_label_word"])
+            essays_labels_pos.append(eassy_["entities_label_pos"])
         elif name_ in train_test_split["test"]:
             essays_test.append(eassy_["txt"][0])
-            essays_test_labels.append(eassy_["entities_label_word"])
-    return (essays, essays_labels), (essays_test, essays_test_labels)
+            essays_test_labels_word.append(eassy_["entities_label_word"])
+            essays_test_labels_pos.append(eassy_["entities_label_pos"])
+    return (essays, essays_labels_word, essays_labels_pos), \
+           (essays_test, essays_test_labels_word, essays_test_labels_pos)
 
 
 def parse_txt_content(txt_content: list, lower):

@@ -1,31 +1,31 @@
 import tensorflow.compat.v1 as tf
 import modeling
+# from crf import crf_log_likelihood
 tf.disable_v2_behavior()
 
 
 class POSModel:
     def __init__(self, config, out_shape):
-        with tf.variable_scope("final_layer"):
-            self.activation = modeling.get_activation(config.hidden_act)
-            self.hidden_dim = config.hidden_size
-            self.initializer_range = config.initializer_range
-            self.output_shape = out_shape
-            self.max_length = config.max_length
+        self.activation = modeling.get_activation(config.hidden_act)
+        self.hidden_dim = config.hidden_size
+        self.initializer_range = config.initializer_range
+        self.output_shape = out_shape
+        self.max_length = config.max_length
+        self.trans = None
 
     def __call__(self, x, y, sequence_length):
         x = tf.reshape(x, (-1, self.hidden_dim))
 
-        x = tf.layers.dense(x, self.output_shape,
-                            activation=self.activation,
-                            kernel_initializer=modeling.create_initializer(self.initializer_range))
-        self.logits = x
+        self.logits = tf.layers.dense(x, self.output_shape,
+                                      activation=self.activation,
+                                      kernel_initializer=modeling.create_initializer(self.initializer_range))
         self.targets = y
         self.preds = tf.reshape(tf.argmax(self.logits, axis=-1), [-1, self.max_length])
-        istarget = tf.to_float(tf.not_equal(self.targets, 0))
+        istarget = tf.to_float(sequence_length)
         self.accuracy = tf.reduce_sum(tf.to_float(tf.equal(self.preds, self.targets)) * istarget) / (tf.reduce_sum(istarget))
 
-        # y = tf.subtract(y, sequence_length)
-        self.loss = self.loss_layer(x, self.targets, sequence_length)
+        self.loss = self.loss_layer(self.logits, self.targets, sequence_length)
+        # self.loss = self.crf_loss_layer(self.logits, self.targets, sequence_length)
         return
 
     def loss_layer(self, x, y, sequence_length):
@@ -41,6 +41,15 @@ class POSModel:
         ))
 
         return loss
+
+    # def crf_loss_layer(self, x, y, sequence_length):
+    #     sequence_length = tf.reduce_sum(sequence_length, axis=1)
+    #     self.trans = tf.get_variable("transitions", shape=[self.output_shape, self.output_shape],
+    #                                  initializer=modeling.create_initializer(self.initializer_range))
+    #     x = tf.reshape(x, (-1, self.max_length, self.output_shape))
+    #     log_likelihood, trans = crf_log_likelihood(inputs=x, tag_indices=y,
+    #                                                transition_params=self.trans, sequence_lengths=sequence_length)
+    #     return tf.reduce_mean(-log_likelihood)
 
 
 def sequence_loss_by_example(logits,

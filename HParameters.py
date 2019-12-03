@@ -25,12 +25,13 @@ MODEL_PATH = "./model/model.ckpt"
 ROOT_PATH = "./temp"
 TRAIN_DATA_NAME = "essayv2_train.tfrecord"
 TEST_DATA_NAME = "essayv2_test.tfrecord"
+WORD_DICT_NAME = "word_dict.pkl"
 EMBEDDING_NAME = "glove_embedding.npy"
-GLOVE = False
+GLOVE = True
 
 VECTOR_DIM = 200
 GLOVE_NAME = "glove.6B.{}d.txt".format(VECTOR_DIM)
 
-# logger = get_logger()
-logger = print
+logger = get_logger()
+# logger = print
 
