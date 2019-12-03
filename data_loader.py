@@ -15,7 +15,7 @@ tokenizer = nltk.word_tokenize
 
 entities = {"PAD": 0, "MajorClaim": 1, "Claim": 2, "Premise": 3, "Other": 0}
 pos = {"PAD": 0, "Begin": 1, "Intermediate": 2, "End": 3, "Single": 4, "Other": 0}
-relations = {"PAD": 0, "supports": 1, "attacks": 2, "Other": 0}
+relations = {"PAD": 0, "supports": 1, "attacks": 2, "For": 3, "Against": 4, "Other": 0}
 attributes = {"PAD": 0, "Stance": 1, "Other": 0}
 trans_table = {ord(f): ord(t) for f, t in zip(
      u'，。！？【】（）％＃＠＆１２３４５６７８９０‘’“”""',
@@ -244,43 +244,62 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
         temp_col_ = list()
         temp_row_ = list()
         temp_data_ = list()
+        temp_major_inds_ = list()
         for a_k_, a_v_ in v_["ann"].items():
             if a_v_["type"] in relations:
                 from_ = int(a_v_["content"][0].replace("T", ""))
                 to_ = int(a_v_["content"][1].replace("T", ""))
                 from_ = temp_trans_map[from_]
                 to_ = temp_trans_map[to_]
+                relation_code_ = relations[a_v_["type"]]
                 if from_ not in data_dict[k_]["relation_graph"]:
                     data_dict[k_]["relation_graph"][from_] = list()
                 data_dict[k_]["relation_graph"][from_].append(to_)
                 temp_row_.append(from_)
                 temp_col_.append(to_)
-                temp_data_.append(relations[a_v_["type"]])
+                temp_data_.append(relation_code_)
+            elif a_v_["type"] == "MajorClaim":
+                temp_major_inds_.append(temp_trans_map[int(a_k_.replace("T", ""))])
+        for a_k_, a_v_ in v_["ann"].items():
+            if a_v_["type"] in attributes:
+                from_ = int(a_v_["content"][0].replace("T", ""))
+                from_ = temp_trans_map[from_]
+                relation_code_ = relations[a_v_["content"][1]]
+                for temp_major_ind_ in temp_major_inds_:
+                    temp_row_.append(from_)
+                    temp_col_.append(temp_major_ind_)
+                    temp_data_.append(relation_code_)
         temp_shape_ = len(data_dict[k_]["node2pos"])
-        data_dict[k_]["graph_feature"] = csr_matrix((temp_data_, (temp_row_, temp_col_)),
-                                                    shape=(temp_shape_, temp_shape_))
-        a = nx.from_dict_of_lists(data_dict[k_]["relation_graph"])
-        b = nx.adjacency_matrix(a)
-        # c = nx.
-        data_dict[k_]["adj_graph"] = nx.adjacency_matrix(nx.from_dict_of_lists(data_dict[k_]["relation_graph"]))
-        print(1)
-    essays = list()
-    essays_labels_word = list()
-    essays_labels_pos = list()
-    essays_test = list()
-    essays_test_labels_word = list()
-    essays_test_labels_pos = list()
+        data_dict[k_]["adj_graph"] = csr_matrix((temp_data_, (temp_row_, temp_col_)),
+                                                shape=(temp_shape_, temp_shape_))
+        data_dict[k_]["relation_graph"] = nx.from_dict_of_lists(data_dict[k_]["relation_graph"])
+
+        # data_dict[k_]["adj_graph"] = nx.adjacency_matrix(data_dict[k_]["relation_graph"])
+
+    essays, essays_labels_word, essays_labels_pos = list(), list(), list()
+    essays_relation_graph, essays_node2pos, essays_adj_graph = list(), list(), list()
+    essays_test, essays_test_labels_word, essays_test_labels_pos = list(), list(), list()
+    essays_test_relation_graph, essays_test_node2pos, essays_test_adj_graph = list(), list(), list()
     for name_, essay_ in data_dict.items():
         if name_ in train_test_split["train"]:
             essays.append(essay_["txt"][0])
             essays_labels_word.append(essay_["entities_label_word"])
             essays_labels_pos.append(essay_["entities_label_pos"])
+            essays_relation_graph.append(essay_["relation_graph"])
+            essays_node2pos.append(essay_["node2pos"])
+            essays_adj_graph.append(essay_["adj_graph"])
         elif name_ in train_test_split["test"]:
             essays_test.append(essay_["txt"][0])
             essays_test_labels_word.append(essay_["entities_label_word"])
             essays_test_labels_pos.append(essay_["entities_label_pos"])
-    return (essays, essays_labels_word, essays_labels_pos), \
-           (essays_test, essays_test_labels_word, essays_test_labels_pos)
+            essays_test_relation_graph.append(essay_["relation_graph"])
+            essays_test_node2pos.append(essay_["node2pos"])
+            essays_test_adj_graph.append(essay_["adj_graph"])
+
+    return (essays, essays_labels_word, essays_labels_pos,
+            essays_relation_graph, essays_node2pos, essays_adj_graph), \
+           (essays_test, essays_test_labels_word, essays_test_labels_pos,
+            essays_test_relation_graph, essays_test_node2pos, essays_test_adj_graph)
 
 
 def parse_txt_content(txt_content: list, lower):
