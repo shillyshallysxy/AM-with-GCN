@@ -270,15 +270,15 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
     essays_test = list()
     essays_test_labels_word = list()
     essays_test_labels_pos = list()
-    for name_, eassy_ in data_dict.items():
+    for name_, essay_ in data_dict.items():
         if name_ in train_test_split["train"]:
-            essays.append(eassy_["txt"][0])
-            essays_labels_word.append(eassy_["entities_label_word"])
-            essays_labels_pos.append(eassy_["entities_label_pos"])
+            essays.append(essay_["txt"][0])
+            essays_labels_word.append(essay_["entities_label_word"])
+            essays_labels_pos.append(essay_["entities_label_pos"])
         elif name_ in train_test_split["test"]:
-            essays_test.append(eassy_["txt"][0])
-            essays_test_labels_word.append(eassy_["entities_label_word"])
-            essays_test_labels_pos.append(eassy_["entities_label_pos"])
+            essays_test.append(essay_["txt"][0])
+            essays_test_labels_word.append(essay_["entities_label_word"])
+            essays_test_labels_pos.append(essay_["entities_label_pos"])
     return (essays, essays_labels_word, essays_labels_pos), \
            (essays_test, essays_test_labels_word, essays_test_labels_pos)
 
