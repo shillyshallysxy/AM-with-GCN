@@ -3,7 +3,8 @@ import csv
 import os
 import string
 from collections import Counter
-
+from scipy.sparse import csr_matrix
+import networkx as nx
 import nltk
 import numpy as np
 from sklearn.decomposition import PCA
@@ -145,7 +146,9 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
     # -------做单词级别的序列标注---------
     for k_, v_ in data_dict.items():
         data_dict[k_]["entities_label_char"] = np.ones(len(v_["txt"][2]), dtype=np.int)*entities["Other"]
+        data_dict[k_]["node2pos_label_char"] = np.ones(len(v_["txt"][2]), dtype=np.int)*entities["Other"]
         data_dict[k_]["entities_label_word"] = np.ones(len(v_["txt"][0]), dtype=np.int)*entities["Other"]
+        data_dict[k_]["node2pos_label_word"] = np.ones(len(v_["txt"][0]), dtype=np.int)*entities["Other"]
         data_dict[k_]["entities_label_pos"] = np.ones(len(v_["txt"][0]), dtype=np.int)*entities["Other"]
         # 做字符集别的序列标注
         for a_k_, a_v_ in v_["ann"].items():
@@ -155,6 +158,7 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
                 debug_ = v_["txt"][2][start:end]
                 assert debug_ == a_v_["article"]
                 data_dict[k_]["entities_label_char"][start: end] = entities[a_v_["type"]]
+                data_dict[k_]["node2pos_label_char"][start: end] = int(a_k_.replace("T", ""))
         # 做单词级别的序列标注
         now_ind_ = 0
         for ind_, word_ in enumerate(v_["txt"][0]):
@@ -182,7 +186,13 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
             label_ = sorted(label_)[len(label_) // 2]
             data_dict[k_]["entities_label_word"][ind_] = label_
 
+            label_ = data_dict[k_]["node2pos_label_char"][now_ind_: now_ind_ + len(word_)]
+            label_ = sorted(label_)[len(label_) // 2]
+            data_dict[k_]["node2pos_label_word"][ind_] = label_
+
             now_ind_ += (len(word_)+1)
+
+        del data_dict[k_]["entities_label_char"], data_dict[k_]["node2pos_label_char"]
         # POS
         entities_labels_ = data_dict[k_]["entities_label_word"]
         if entities_labels_[0] == entities["Other"]:
@@ -214,14 +224,46 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
             else:
                 data_dict[k_]["entities_label_pos"][-1] = pos["End"]
 
+        # 构建节点对应文本位置
+        prior_ind_ = 0
+        data_dict[k_]["node2pos"] = dict()
+        temp_trans_map = dict()
+        for ind_ in range(len(data_dict[k_]["entities_label_word"]) - 1):
+            if data_dict[k_]["entities_label_word"][ind_] != data_dict[k_]["entities_label_word"][ind_ + 1]:
+                node2pos_key_ = len(data_dict[k_]["node2pos"])
+                data_dict[k_]["node2pos"][node2pos_key_] = (prior_ind_, ind_ + 1)
+
+                label_ = data_dict[k_]["node2pos_label_word"][prior_ind_: ind_ + 1]
+                label_ = sorted(label_)[len(label_) // 2]
+                temp_trans_map[label_] = node2pos_key_
+
+                prior_ind_ = ind_ + 1
+
         # 做关系标注
+        data_dict[k_]["relation_graph"] = dict()
+        temp_col_ = list()
+        temp_row_ = list()
+        temp_data_ = list()
         for a_k_, a_v_ in v_["ann"].items():
             if a_v_["type"] in relations:
-                pass
+                from_ = int(a_v_["content"][0].replace("T", ""))
+                to_ = int(a_v_["content"][1].replace("T", ""))
+                from_ = temp_trans_map[from_]
+                to_ = temp_trans_map[to_]
+                if from_ not in data_dict[k_]["relation_graph"]:
+                    data_dict[k_]["relation_graph"][from_] = list()
+                data_dict[k_]["relation_graph"][from_].append(to_)
+                temp_row_.append(from_)
+                temp_col_.append(to_)
+                temp_data_.append(relations[a_v_["type"]])
+        temp_shape_ = len(data_dict[k_]["node2pos"])
+        data_dict[k_]["graph_feature"] = csr_matrix((temp_data_, (temp_row_, temp_col_)),
+                                                    shape=(temp_shape_, temp_shape_))
+        a = nx.from_dict_of_lists(data_dict[k_]["relation_graph"])
+        b = nx.adjacency_matrix(a)
+        # c = nx.
+        data_dict[k_]["adj_graph"] = nx.adjacency_matrix(nx.from_dict_of_lists(data_dict[k_]["relation_graph"]))
         print(1)
-
-
-
     essays = list()
     essays_labels_word = list()
     essays_labels_pos = list()
