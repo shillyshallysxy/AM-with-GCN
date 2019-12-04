@@ -47,12 +47,16 @@ class EssayV2(DataSet):
 
         del train_texts, test_texts, train_data, test_data
 
+        self.train_y = list(zip(train_labels, train_labels_pos, train_adj_graph))
+        self.test_y = list(zip(test_labels, test_labels_pos, test_adj_graph))
+
         self.train_others = list(zip(train_relation_graph, train_node2pos))
         self.test_others = list(zip(test_relation_graph, test_node2pos))
 
         self.num_classes_entities = len(dl.entities) - 1
         self.num_classes_pos = len(dl.pos) - 1
         self.num_classes_relations = len(dl.relations) - 1
+        self.num_train_set = len(self.train_others)
 
 
 if __name__ == "__main__":

@@ -43,11 +43,11 @@ def run_train():
 
         transformer_middle_output = model.get_all_encoder_layers()[bert_config.num_hidden_layers//2]
         # transformer_middle_output = model.get_sequence_output()
-        pos_model = m.POSModel(bert_config, 5)
+        pos_model = m.POSModel(bert_config, data.num_classes_pos)
         pos_model(transformer_middle_output, targets_pos, input_mask)
 
         transformer_output = model.get_sequence_output()
-        entity_model = m.POSModel(bert_config, 4)
+        entity_model = m.POSModel(bert_config, data.num_classes_entities)
         entity_model(transformer_output, targets, input_mask)
 
         entities_weight = 1
@@ -55,7 +55,7 @@ def run_train():
         joint_loss = pos_weight*pos_model.loss + entities_weight*entity_model.loss
 
         tvars = tf.trainable_variables()
-        num_train_steps = int((322*bert_config.num_train_epochs)/bert_config.batch_size)
+        num_train_steps = int((data.num_train_set*bert_config.num_train_epochs)/bert_config.batch_size)
         num_warmup_steps = int(num_train_steps * bert_config.warmup_proportion)
 
         # pos_train_op = create_optimizer(pos_model.loss, bert_config.init_lr,
