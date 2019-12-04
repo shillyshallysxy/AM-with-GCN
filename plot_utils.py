@@ -83,7 +83,7 @@ def sum_same_label_in_x_axis(attention_matrix, x_axis_label, node2pos, transpose
 def show_attention_matrix_with_label(attention_matrix, col, index, relation_graph):
     df = pd.DataFrame(attention_matrix, columns=col, index=index)
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=(12, 6))
     if relation_graph is None:
         ax = fig.add_subplot(111)
     else:
@@ -106,8 +106,8 @@ def show_attention_matrix_with_label(attention_matrix, col, index, relation_grap
 
     if relation_graph is not None:
         ax = fig.add_subplot(122)
-        relation_graph = nx.to_numpy_matrix(relation_graph)
-        df = pd.DataFrame(relation_graph, columns=col, index=index)
+        relation_graph_np = nx.to_numpy_matrix(relation_graph, nodelist=np.arange(len(attention_matrix)))
+        df = pd.DataFrame(relation_graph_np, columns=col, index=index)
         cax = ax.matshow(df, interpolation='nearest', cmap='hot_r')
         # cax = ax.matshow(df)
         fig.colorbar(cax)
@@ -124,3 +124,5 @@ def show_attention_matrix_with_label(attention_matrix, col, index, relation_grap
         ax.set_yticklabels([''] + list(df.index))
 
     plt.show()
+
+

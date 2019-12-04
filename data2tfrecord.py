@@ -51,7 +51,7 @@ def get_dataset(record_name_):
 
 
 if __name__ == "__main__":
-    train_data, test_data = dl.load_essays(lower=True)
+    train_data, test_data = dl.load_essays(lower=LOWER)
     train_texts, train_labels, train_labels_pos, _, _, _ = train_data
     test_texts, test_labels, test_labels_pos, _, _, _ = test_data
     if GLOVE:

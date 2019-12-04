@@ -228,13 +228,15 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
         prior_ind_ = 0
         data_dict[k_]["node2pos"] = dict()
         temp_trans_map = dict()
-        for ind_ in range(len(data_dict[k_]["entities_label_word"]) - 1):
-            if data_dict[k_]["entities_label_word"][ind_] != data_dict[k_]["entities_label_word"][ind_ + 1]:
+
+        for ind_ in range(len(data_dict[k_]["node2pos_label_word"]) - 1):
+            if data_dict[k_]["node2pos_label_word"][ind_] != data_dict[k_]["node2pos_label_word"][ind_ + 1]:
                 node2pos_key_ = len(data_dict[k_]["node2pos"])
                 data_dict[k_]["node2pos"][node2pos_key_] = (prior_ind_, ind_ + 1)
 
                 label_ = data_dict[k_]["node2pos_label_word"][prior_ind_: ind_ + 1]
                 label_ = sorted(label_)[len(label_) // 2]
+
                 temp_trans_map[label_] = node2pos_key_
 
                 prior_ind_ = ind_ + 1

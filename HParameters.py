@@ -28,6 +28,7 @@ TEST_DATA_NAME = "essayv2_test.tfrecord"
 WORD_DICT_NAME = "word_dict.pkl"
 EMBEDDING_NAME = "glove_embedding.npy"
 GLOVE = True
+LOWER = True
 
 VECTOR_DIM = 200
 GLOVE_NAME = "glove.6B.{}d.txt".format(VECTOR_DIM)

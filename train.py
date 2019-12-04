@@ -3,6 +3,7 @@ import model as m
 import plot_utils as pu
 from optimization import create_optimizer
 from data2tfrecord import *
+from data2normal import *
 import tensorflow.compat.v1 as tf
 import numpy as np
 import pickle
@@ -17,6 +18,7 @@ def run_train():
         bert_config.vocab_size = embedding.shape[0]
     with open(os.path.join(ROOT_PATH, WORD_DICT_NAME), 'rb') as f:
         word_dict = pickle.load(f)
+    data = EssayV2()
     with tf.Session() as sess:
         padding_shape = ([bert_config.max_length], [bert_config.max_length], [bert_config.max_length], [bert_config.max_length])
         data_set_train = get_dataset(TRAIN_DATA_NAME)
@@ -39,8 +41,8 @@ def run_train():
             use_one_hot_embeddings=False  # 这里如果使用TPU 设置为True，速度会快些。使用CPU 或GPU 设置为False ，速度会快些。
         )
 
-        # transformer_middle_output = model.get_all_encoder_layers()[bert_config.num_hidden_layers//2]
-        transformer_middle_output = model.get_sequence_output()
+        transformer_middle_output = model.get_all_encoder_layers()[bert_config.num_hidden_layers//2]
+        # transformer_middle_output = model.get_sequence_output()
         pos_model = m.POSModel(bert_config, 5)
         pos_model(transformer_middle_output, targets_pos, input_mask)
 
@@ -87,7 +89,10 @@ def run_train():
             attention_output = np.mean(attention_output, axis=0)
             entity_labels = entity_labels[0]
             in_masks = in_masks[0]
-            pu.plot_attention(attention_output, ids, ids, entity_labels, in_masks, word_dict)
+            relation_graph = data.test_others[0][0]
+            node2pos = data.test_others[0][1]
+            pu.plot_attention(attention_output, ids, ids, entity_labels, in_masks, word_dict,
+                              node2pos=node2pos, relation_graph=relation_graph)
 
         logger("**** Trainable Variables ****")
         # saver.restore(sess, MODEL_PATH)
