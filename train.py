@@ -70,7 +70,7 @@ def run_train():
 
         if GLOVE:
             tf.assign(model.embedding_table, embedding)
-        if False:
+        if True:
             saver.restore(sess, MODEL_PATH)
             data_set_test = get_dataset(os.path.join(TEST_DATA_NAME))
 
