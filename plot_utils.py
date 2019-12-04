@@ -61,7 +61,7 @@ def show_node_str(x_axis_token, index, word_dict, node2pos):
                 print("{}: {}".format(ind_, " ".join(content[int(l_): int(r_)])))
 
 
-def sum_same_label_in_x_axis(attention_matrix, x_axis_label, node2pos, transpose=True):
+def sum_same_label_in_x_axis(attention_matrix, x_axis_label, node2pos, transpose=True, do_softmax=False):
     col = list()
     all_atten = list()
     for i_, x_ in enumerate(attention_matrix):
@@ -75,6 +75,9 @@ def sum_same_label_in_x_axis(attention_matrix, x_axis_label, node2pos, transpose
                 prior_ind_ = ind_ + 1
         all_atten.append(atten)
     attention_matrix = np.array(all_atten)
+    if do_softmax:
+        attention_matrix = softmax(attention_matrix, axis=1)
+        pass
     if transpose:
         attention_matrix = attention_matrix.transpose()
     return attention_matrix, col
@@ -106,12 +109,12 @@ def show_attention_matrix_with_label(attention_matrix, col, index, relation_grap
 
     if relation_graph is not None:
         ax = fig.add_subplot(122)
+        ax.grid(True)
         relation_graph_np = nx.to_numpy_matrix(relation_graph, nodelist=np.arange(len(attention_matrix)))
         df = pd.DataFrame(relation_graph_np, columns=col, index=index)
         cax = ax.matshow(df, interpolation='nearest', cmap='hot_r')
         # cax = ax.matshow(df)
         fig.colorbar(cax)
-
         tick_spacing = 1
         ax.xaxis.set_major_locator(ticker.MultipleLocator(tick_spacing))
         ax.yaxis.set_major_locator(ticker.MultipleLocator(tick_spacing))
@@ -124,5 +127,15 @@ def show_attention_matrix_with_label(attention_matrix, col, index, relation_grap
         ax.set_yticklabels([''] + list(df.index))
 
     plt.show()
+
+
+def softmax(matrix: np.ndarray, axis=-1):
+    dim = len(matrix.shape) - 1
+    if axis == -1:
+        axis = dim
+    assert dim >= axis, "axis {} must be smaller than dim {}.".format(axis, dim)
+    denominator = np.sum(np.exp(matrix), axis, keepdims=True)
+    return np.exp(matrix) / denominator
+
 
 

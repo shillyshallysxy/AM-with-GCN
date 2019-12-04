@@ -21,8 +21,13 @@ class POSModel:
                                       kernel_initializer=modeling.create_initializer(self.initializer_range))
         self.targets = y
         self.preds = tf.reshape(tf.argmax(self.logits, axis=-1), [-1, self.max_length])
-        istarget = tf.to_float(sequence_length)
-        self.accuracy = tf.reduce_sum(tf.to_float(tf.equal(self.preds, self.targets)) * istarget) / (tf.reduce_sum(istarget))
+        istarget = tf.to_float(tf.not_equal(self.preds, 0))
+        self.accuracy = tf.reduce_sum(tf.to_float(tf.equal(self.preds, self.targets)) * istarget) / (
+            tf.reduce_sum(istarget))
+
+        istargetv2 = tf.to_float(sequence_length)
+        self.accuracy2 = tf.reduce_sum(tf.to_float(tf.equal(self.preds, self.targets)) * istargetv2) / (
+            tf.reduce_sum(istargetv2))
 
         self.loss = self.loss_layer(self.logits, self.targets, sequence_length)
         # self.loss = self.crf_loss_layer(self.logits, self.targets, sequence_length)
@@ -31,6 +36,9 @@ class POSModel:
     def loss_layer(self, x, y, sequence_length):
 
         sequence_length = tf.to_float(sequence_length)
+
+        is_target = tf.to_float(tf.equal(y, 0)) * 0
+        sequence_length = sequence_length * is_target
 
         loss = tf.reduce_mean(sequence_loss_by_example(
             [x],

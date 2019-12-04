@@ -93,6 +93,7 @@ def run_train():
             node2pos = data.test_others[0][1]
             pu.plot_attention(attention_output, ids, ids, entity_labels, in_masks, word_dict,
                               node2pos=node2pos, relation_graph=relation_graph)
+            # exit()
 
         logger("**** Trainable Variables ****")
         # saver.restore(sess, MODEL_PATH)
@@ -103,7 +104,8 @@ def run_train():
             sess.run(joint_train_op, feed_dict={handle: train_handle})
 
             if iter_ % 50 == 0:
-                loss, acc, preds, targets = sess.run([pos_model.loss, pos_model.accuracy, pos_model.preds, pos_model.targets], feed_dict={handle: train_handle})
+                loss, acc, preds, targets = sess.run([pos_model.loss, pos_model.accuracy, pos_model.preds,
+                                                      pos_model.targets], feed_dict={handle: train_handle})
                 logger("[AM-POS] iter: {}\tloss: {}\tacc_pos: {}".format(iter_, loss, acc))
                 # logger("[AM-POS] iter: {}\ntarget: {}\npreds: {}".format(iter_, targets[0, :], preds[0, :]))
 
@@ -119,10 +121,11 @@ def run_train():
 
                 data_set_test_iter = data_set_test.make_one_shot_iterator()
                 test_handle = sess.run(data_set_test_iter.string_handle())
+
+                total_acc_pos = 0
+                total_acc_entity = 0
+                total_num = 0
                 try:
-                    total_acc_pos = 0
-                    total_acc_entity = 0
-                    total_num = 0
                     while True:
                         tacc_pos, tacc_entity = sess.run([pos_model.accuracy, entity_model.accuracy], {handle: test_handle})
                         total_acc_pos += tacc_pos
@@ -134,6 +137,7 @@ def run_train():
                 if acc > best_score:
                     best_score = acc
                     saver.save(sess, MODEL_PATH)
+                    logger("Saved at Score: {}".format(best_score))
         logger("Best Score: {}".format(best_score))
         logger("**** Training End ****")
 

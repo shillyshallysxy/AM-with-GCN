@@ -13,7 +13,7 @@
   "batch_size": 32,
   "max_length": 560,
   "shuffle_pool_size": 128,
-  "num_train_epochs": 100,
+  "num_train_epochs": 20,
   "warmup_proportion": 0.1,
   "init_lr": 5e-5
 }
