@@ -23,6 +23,7 @@ BERT_CONFIG_PATH = "./bert_config.json"
 MODEL_PATH = "./model/model.ckpt"
 
 ROOT_PATH = "./temp"
+RES_PATH = "./results"
 TRAIN_DATA_NAME = "essayv2_train.tfrecord"
 TEST_DATA_NAME = "essayv2_test.tfrecord"
 WORD_DICT_NAME = "word_dict.pkl"

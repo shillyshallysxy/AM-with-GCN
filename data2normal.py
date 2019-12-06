@@ -43,8 +43,9 @@ class EssayV2(DataSet):
         super().__init__()
         train_data, test_data = dl.load_essays(lower=LOWER, consider_other=CONSIDER_OTHER)
         _, _, _, _, _, train_relation_graph, train_node2pos, train_adj_graph = train_data
-        _, _, _, _, _, test_relation_graph, test_node2pos, test_adj_graph = test_data
+        _, test_labels, _, _, _, test_relation_graph, test_node2pos, test_adj_graph = test_data
 
+        self.test_y = test_labels
         self.train_others = list(zip(train_relation_graph, train_node2pos))
         self.test_others = list(zip(test_relation_graph, test_node2pos))
 

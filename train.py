@@ -7,6 +7,7 @@ from data2normal import *
 import tensorflow.compat.v1 as tf
 import numpy as np
 import pickle
+import operator
 tf.disable_v2_behavior()
 
 bert_config = bm.BertConfig.from_json_file(BERT_CONFIG_PATH)  # 配置文件地址。
@@ -97,20 +98,26 @@ def run_train():
 
             ids, entity_labels, in_masks, attention_output = sess.run([input_ids, targets, input_mask,
                                                              model.all_attention], feed_dict={handle: test_handle})
-            ids = ids[0]
 
-            entity_labels = entity_labels[0]
-            in_masks = in_masks[0]
-            relation_graph = data.test_others[0][0]
-            node2pos = data.test_others[0][1]
-            attention_output = np.array(attention_output)[1:, 0, :, :, :]
-            attention_output = np.mean(attention_output, axis=-3)
-            for attention_output_ in attention_output:
-                pu.plot_attention(attention_output_, ids, ids, entity_labels, in_masks, word_dict,
-                                  node2pos=node2pos, relation_graph=relation_graph)
-            pu.plot_attention(attention_output, ids, ids, entity_labels, in_masks, word_dict,
-                              node2pos=node2pos, relation_graph=relation_graph)
-            # exit()
+            show_inds = [0, 1]
+            for show_ind in show_inds:
+                ids_ = ids[show_ind]
+                entity_labels_ = entity_labels[show_ind]
+                in_masks_ = in_masks[show_ind]
+                relation_graph = data.test_others[show_ind][0]
+                node2pos = data.test_others[show_ind][1]
+                assert (entity_labels_[:np.sum(in_masks_)] == data.test_y[show_ind]).all(), "数据必须匹配"
+
+                attention_output_ = np.array(attention_output)[1:, show_ind, :, :, :]
+                attention_output_ = np.mean(attention_output_, axis=-3)
+                for ind_, attention_output__ in enumerate(attention_output_):
+                    pu.plot_attention(attention_output__, ids_, ids_, entity_labels_, in_masks_, word_dict,
+                                      node2pos=node2pos, relation_graph=relation_graph,
+                                      name="test_{}_attention_layer_{}.png".format(show_ind, ind_))
+                pu.plot_attention(attention_output_, ids_, ids_, entity_labels_, in_masks_, word_dict,
+                                  node2pos=node2pos, relation_graph=relation_graph,
+                                  name="test_{}attention_layer_avg.png".format(show_ind))
+            exit()
 
         logger("**** Trainable Variables ****")
         # saver.restore(sess, MODEL_PATH)

@@ -3,13 +3,15 @@ import pandas as pd
 import matplotlib.ticker as ticker
 import numpy as np
 import networkx as nx
+import os
+from HParameters import *
 
 unk_str = 'unk'
 
 
 def plot_attention(d, x_axis_token, y_axis_token, ac_label=None,
                    in_mask=None, word_dict=None,
-                   node2pos=None, relation_graph=None):
+                   node2pos=None, relation_graph=None, name=None):
     word_dict = dict(zip(word_dict.values(), word_dict.keys()))
     method_name = "mean"
 
@@ -50,7 +52,7 @@ def plot_attention(d, x_axis_token, y_axis_token, ac_label=None,
             col = x_axis_token
             index = y_axis_token
 
-    show_attention_matrix_with_label(d, col, index, relation_graph)
+    show_attention_matrix_with_label(d, col, index, relation_graph, name)
 
 
 def trans_pos2node(pos, node2pos) -> str:
@@ -115,7 +117,7 @@ def reduce_same_label_in_x_axis(attention_matrix, x_axis_label, node2pos, transp
     return attention_matrix, col
 
 
-def show_attention_matrix_with_label(attention_matrix, col, index, relation_graph):
+def show_attention_matrix_with_label(attention_matrix, col, index, relation_graph, name):
     df = pd.DataFrame(attention_matrix, columns=col, index=index)
 
     fig = plt.figure(figsize=(12, 6))
@@ -157,8 +159,11 @@ def show_attention_matrix_with_label(attention_matrix, col, index, relation_grap
         # Axes.set_xticklabels(labels, fontdict=None, minor=False, **kwargs)
         ax.set_xticklabels([''] + list(df.columns), fontdict=fontdict)
         ax.set_yticklabels([''] + list(df.index))
-
-    plt.show()
+    if name is None:
+        plt.show()
+    else:
+        plt.savefig(os.path.join(RES_PATH, name))
+        plt.close()
 
 
 def softmax(matrix: np.ndarray, axis=-1):
