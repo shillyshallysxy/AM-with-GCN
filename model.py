@@ -21,7 +21,7 @@ class POSModel:
                                       kernel_initializer=modeling.create_initializer(self.initializer_range))
         self.targets = y
         self.preds = tf.reshape(tf.argmax(self.logits, axis=-1), [-1, self.max_length])
-        istarget = tf.to_float(tf.not_equal(self.preds, 0))
+        istarget = tf.to_float(tf.not_equal(self.targets, 0))
         self.accuracy = tf.reduce_sum(tf.to_float(tf.equal(self.preds, self.targets)) * istarget) / (
             tf.reduce_sum(istarget))
 
@@ -37,8 +37,8 @@ class POSModel:
 
         sequence_length = tf.to_float(sequence_length)
 
-        is_target = tf.to_float(tf.equal(y, 0)) * 0
-        sequence_length = sequence_length * is_target
+        weight = tf.to_float(tf.equal(y, 0))*0. + tf.to_float(tf.not_equal(y, 0))*1.
+        sequence_length = sequence_length * weight
 
         loss = tf.reduce_mean(sequence_loss_by_example(
             [x],
@@ -58,6 +58,57 @@ class POSModel:
     #     log_likelihood, trans = crf_log_likelihood(inputs=x, tag_indices=y,
     #                                                transition_params=self.trans, sequence_lengths=sequence_length)
     #     return tf.reduce_mean(-log_likelihood)
+
+
+class POSRegModel:
+    def __init__(self, config, out_shape=1):
+        self.activation = None
+        self.hidden_dim = config.hidden_size
+        self.initializer_range = config.initializer_range
+        self.output_shape = out_shape
+        self.max_length = config.max_length
+        self.trans = None
+
+    def __call__(self, x, y, sequence_length):
+        x = tf.reshape(x, (-1, self.hidden_dim))
+
+        self.logits = tf.layers.dense(x, self.output_shape,
+                                      activation=self.activation,
+                                      kernel_initializer=modeling.create_initializer(self.initializer_range))
+        self.targets = tf.to_float(y)
+        self.preds = tf.reshape(self.logits, [-1, self.max_length])
+        istarget = tf.to_float(tf.not_equal(self.targets, 0))
+        self.accuracy = tf.reduce_sum(tf.to_float(tf.square(tf.subtract(self.preds, self.targets))) * istarget) / (
+            tf.reduce_sum(istarget))
+
+        istargetv2 = tf.to_float(sequence_length)
+        self.accuracy2 = tf.reduce_sum(tf.to_float(tf.square(tf.subtract(self.preds, self.targets))) * istargetv2) / (
+            tf.reduce_sum(istargetv2))
+
+        self.loss = self.loss_layer(self.logits, self.targets, sequence_length)
+        # self.loss = self.crf_loss_layer(self.logits, self.targets, sequence_length)
+        return
+
+    def loss_layer(self, x, y, sequence_length):
+
+        sequence_length = tf.to_float(sequence_length)
+
+        weight = tf.to_float(tf.equal(y, 0))*0.1 + tf.to_float(tf.not_equal(y, 0))*1.
+        sequence_length = sequence_length * weight
+
+        loss = tf.reduce_mean(sequence_loss_by_example(
+            [tf.reshape(x, [-1], name='reshaped_input')],
+            [tf.reshape(y, [-1], name='reshaped_target')],
+            [tf.reshape(sequence_length, [-1], name='sequence_length')],
+            average_across_timesteps=True,
+            softmax_loss_function=ms_error,
+        ))
+
+        return loss
+
+
+def ms_error(labels, logits):
+    return tf.square(tf.subtract(labels, logits))
 
 
 def sequence_loss_by_example(logits,

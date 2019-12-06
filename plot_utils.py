@@ -11,17 +11,34 @@ def plot_attention(d, x_axis_token, y_axis_token, ac_label=None,
                    in_mask=None, word_dict=None,
                    node2pos=None, relation_graph=None):
     word_dict = dict(zip(word_dict.values(), word_dict.keys()))
+    method_name = "mean"
 
     if ac_label is not None:
         if in_mask is not None:
             in_mask = np.sum(in_mask)
-            d = d[:in_mask, :in_mask]
+            if len(d.shape) == 3:
+                d = d[:, :in_mask, :in_mask]
+            elif len(d.shape) == 2:
+                d = d[:in_mask, :in_mask]
+                d = np.expand_dims(d, axis=0)
+            else:
+                raise ValueError("不支持该格式的attention matrix")
             x_axis_token = x_axis_token[:in_mask]
             y_axis_token = y_axis_token[:in_mask]
 
-        d, col = sum_same_label_in_x_axis(d, ac_label, node2pos)
+        atten_matrix = list()
 
-        d, index = sum_same_label_in_x_axis(d, ac_label, node2pos)
+        col = None
+        index = None
+        for d_ in d:
+            d_, col = reduce_same_label_in_x_axis(d_, ac_label, node2pos, method_name=method_name)
+
+            d_, index = reduce_same_label_in_x_axis(d_, ac_label, node2pos, method_name=method_name)
+
+            d_ = d_+d_.T
+
+            atten_matrix.append(d_)
+        d = np.sum(np.array(atten_matrix), axis=0)
 
         show_node_str(x_axis_token, index, word_dict, node2pos)
 
@@ -61,18 +78,33 @@ def show_node_str(x_axis_token, index, word_dict, node2pos):
                 print("{}: {}".format(ind_, " ".join(content[int(l_): int(r_)])))
 
 
-def sum_same_label_in_x_axis(attention_matrix, x_axis_label, node2pos, transpose=True, do_softmax=False):
+def reduce_same_label_in_x_axis(attention_matrix, x_axis_label, node2pos, transpose=True, do_softmax=False,
+                                method_name="mean"):
     col = list()
     all_atten = list()
+    if method_name == "mean":
+        method = np.mean
+    elif method_name == "sum":
+        method = np.sum
+    else:
+        raise ValueError("没有该方法名：{}".format(method_name))
+
     for i_, x_ in enumerate(attention_matrix):
         atten = list()
-        prior_ind_ = 0
-        for ind_ in range(len(x_) - 1):
-            if x_axis_label[ind_] != x_axis_label[ind_ + 1]:
-                atten.append(np.mean(np.array(x_[prior_ind_: ind_ + 1])))
+        if node2pos is None:
+            prior_ind_ = 0
+            for ind_ in range(len(x_) - 1):
+                if x_axis_label[ind_] != x_axis_label[ind_ + 1]:
+                    atten.append(np.mean(np.array(x_[prior_ind_: ind_ + 1])))
+                    if i_ == 0:
+                        col.append(trans_pos2node((prior_ind_, ind_), node2pos))
+                    prior_ind_ = ind_ + 1
+        else:
+            for pos in node2pos.values():
+                prior_ind_, ind_ = pos
+                atten.append(method(np.array(x_[prior_ind_: ind_])))
                 if i_ == 0:
-                    col.append(trans_pos2node((prior_ind_, ind_ + 1), node2pos))
-                prior_ind_ = ind_ + 1
+                    col.append(trans_pos2node((prior_ind_, ind_), node2pos))
         all_atten.append(atten)
     attention_matrix = np.array(all_atten)
     if do_softmax:

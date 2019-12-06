@@ -249,8 +249,8 @@ class BertModel(object):
     """Gets final hidden layer of encoder.
 
     Returns:
-      float Tensor of shape [batch_size, seq_length, hidden_size] corresponding
-      to the final hidden of the transformer encoder.
+      float Tensor of shape [batch_size, head_num, seq_length, seq_length] corresponding
+      to the final attention of the transformer encoder.
     """
     return self.all_attention[-1]
 

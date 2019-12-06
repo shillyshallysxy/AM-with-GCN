@@ -7,7 +7,7 @@ from HParameters import *
 tf.disable_v2_behavior()
 
 
-def write_binary(record_name, texts_, label_, label_p_):
+def write_binary(record_name, texts_, label_, label_p_, label_r_, label_d_):
     record_path = os.path.join(ROOT_PATH, record_name)
     writer = tf.python_io.TFRecordWriter(record_path)
     for it, text in tqdm(enumerate(texts_)):
@@ -20,6 +20,8 @@ def write_binary(record_name, texts_, label_, label_p_):
                     # "seg": tf.train.Feature(int64_list=tf.train.Int64List(value=seg_[it])),
                     "label_word": tf.train.Feature(int64_list=tf.train.Int64List(value=label_[it])),
                     "label_pos": tf.train.Feature(int64_list=tf.train.Int64List(value=label_p_[it])),
+                    "label_relation": tf.train.Feature(int64_list=tf.train.Int64List(value=label_r_[it])),
+                    "label_distance": tf.train.Feature(int64_list=tf.train.Int64List(value=label_d_[it])),
                 }
             )
         )
@@ -34,6 +36,8 @@ def __parse_function(serial_exmp):
                                                               # "seg": tf.VarLenFeature(tf.int64),
                                                               "label_word": tf.VarLenFeature(tf.int64),
                                                               "label_pos": tf.VarLenFeature(tf.int64),
+                                                              "label_relation": tf.VarLenFeature(tf.int64),
+                                                              "label_distance": tf.VarLenFeature(tf.int64),
                                                               })
     # text = tf.sparse_tensor_to_dense(features["text"], default_value=" ")
     texts_ = tf.sparse.to_dense(features["text"])
@@ -41,7 +45,9 @@ def __parse_function(serial_exmp):
     # seg_ = tf.sparse.to_dense(features["seg"])
     label_ = tf.sparse.to_dense(features["label_word"])
     label_p_ = tf.sparse.to_dense(features["label_pos"])
-    return texts_, mask_, label_, label_p_
+    label_r_ = tf.sparse.to_dense(features["label_relation"])
+    label_d_ = tf.sparse.to_dense(features["label_distance"])
+    return texts_, mask_, label_, label_p_, label_r_, label_d_
 
 
 def get_dataset(record_name_):
@@ -51,9 +57,9 @@ def get_dataset(record_name_):
 
 
 if __name__ == "__main__":
-    train_data, test_data = dl.load_essays(lower=LOWER)
-    train_texts, train_labels, train_labels_pos, _, _, _ = train_data
-    test_texts, test_labels, test_labels_pos, _, _, _ = test_data
+    train_data, test_data = dl.load_essays(lower=LOWER, consider_other=CONSIDER_OTHER)
+    train_texts, train_labels, train_labels_pos, train_labels_rel, train_labels_dis, _, _, _ = train_data
+    test_texts, test_labels, test_labels_pos, test_labels_rel, test_labels_dis, _, _, _ = test_data
     if GLOVE:
         logger("loading glove")
         word_dict = th.load_glove()
@@ -66,8 +72,8 @@ if __name__ == "__main__":
 
     del train_texts, test_texts, train_data, test_data
 
-    write_binary(TRAIN_DATA_NAME, train_tokens, train_labels, train_labels_pos)
-    write_binary(TEST_DATA_NAME, test_tokens, test_labels, test_labels_pos)
+    write_binary(TRAIN_DATA_NAME, train_tokens, train_labels, train_labels_pos, train_labels_rel, train_labels_dis)
+    write_binary(TEST_DATA_NAME, test_tokens, test_labels, test_labels_pos, test_labels_rel, test_labels_dis)
 
     if GLOVE:
         word_dict_ = dict()

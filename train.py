@@ -20,7 +20,9 @@ def run_train():
         word_dict = pickle.load(f)
     data = EssayV2()
     with tf.Session() as sess:
-        padding_shape = ([bert_config.max_length], [bert_config.max_length], [bert_config.max_length], [bert_config.max_length])
+        padding_shape = ([bert_config.max_length], [bert_config.max_length],
+                         [bert_config.max_length], [bert_config.max_length],
+                         [bert_config.max_length], [bert_config.max_length])
         data_set_train = get_dataset(TRAIN_DATA_NAME)
         data_set_train = data_set_train.shuffle(bert_config.shuffle_pool_size).repeat(). \
             padded_batch(bert_config.batch_size, padded_shapes=padding_shape)
@@ -30,7 +32,7 @@ def run_train():
         handle = tf.placeholder(tf.string, shape=[])
         iterator = tf.data.Iterator.from_string_handle(handle, data_set_train.output_types,
                                                        data_set_train.output_shapes)
-        input_ids, input_mask, targets, targets_pos = iterator.get_next()
+        input_ids, input_mask, targets, targets_pos, targets_relation, targets_distance = iterator.get_next()
 
         model = bm.BertModel(
             config=bert_config,
@@ -41,18 +43,29 @@ def run_train():
             use_one_hot_embeddings=False  # 这里如果使用TPU 设置为True，速度会快些。使用CPU 或GPU 设置为False ，速度会快些。
         )
 
-        transformer_middle_output = model.get_all_encoder_layers()[bert_config.num_hidden_layers//2]
-        # transformer_middle_output = model.get_sequence_output()
-        pos_model = m.POSModel(bert_config, data.num_classes_pos)
-        pos_model(transformer_middle_output, targets_pos, input_mask)
-
+        transformer_first_output = model.get_all_encoder_layers()[0]
+        transformer_second_output = model.get_all_encoder_layers()[1]
+        transformer_third_output = model.get_all_encoder_layers()[2]
         transformer_output = model.get_sequence_output()
+
         entity_model = m.POSModel(bert_config, data.num_classes_entities)
         entity_model(transformer_output, targets, input_mask)
 
+        pos_model = m.POSModel(bert_config, data.num_classes_pos)
+        pos_model(transformer_first_output, targets_pos, input_mask)
+
+        rel_model = m.POSModel(bert_config, data.num_classes_relations)
+        rel_model(transformer_second_output, targets_relation, input_mask)
+
+        dis_model = m.POSRegModel(bert_config, data.num_classes_distances)
+        dis_model(transformer_third_output, targets_distance, input_mask)
+
         entities_weight = 1
-        pos_weight = 0.1
-        joint_loss = pos_weight*pos_model.loss + entities_weight*entity_model.loss
+        pos_weight = 1
+        rel_weight = 1
+        dis_weight = 1
+        joint_loss = pos_weight*pos_model.loss + entities_weight*entity_model.loss + \
+                     rel_weight*rel_model.loss + dis_weight*dis_model.loss
 
         tvars = tf.trainable_variables()
         num_train_steps = int((data.num_train_set*bert_config.num_train_epochs)/bert_config.batch_size)
@@ -83,14 +96,18 @@ def run_train():
             test_handle = sess.run(data_set_test_iter.string_handle())
 
             ids, entity_labels, in_masks, attention_output = sess.run([input_ids, targets, input_mask,
-                                                             model.attention_output], feed_dict={handle: test_handle})
+                                                             model.all_attention], feed_dict={handle: test_handle})
             ids = ids[0]
-            attention_output = attention_output[0]
-            attention_output = np.mean(attention_output, axis=0)
+
             entity_labels = entity_labels[0]
             in_masks = in_masks[0]
             relation_graph = data.test_others[0][0]
             node2pos = data.test_others[0][1]
+            attention_output = np.array(attention_output)[1:, 0, :, :, :]
+            attention_output = np.mean(attention_output, axis=-3)
+            for attention_output_ in attention_output:
+                pu.plot_attention(attention_output_, ids, ids, entity_labels, in_masks, word_dict,
+                                  node2pos=node2pos, relation_graph=relation_graph)
             pu.plot_attention(attention_output, ids, ids, entity_labels, in_masks, word_dict,
                               node2pos=node2pos, relation_graph=relation_graph)
             # exit()
@@ -103,7 +120,7 @@ def run_train():
             # sess.run(pos_train_op, feed_dict={handle: train_handle})
             sess.run(joint_train_op, feed_dict={handle: train_handle})
 
-            if iter_ % 50 == 0:
+            if iter_ % 10 == 0:
                 loss, acc, preds, targets = sess.run([pos_model.loss, pos_model.accuracy, pos_model.preds,
                                                       pos_model.targets], feed_dict={handle: train_handle})
                 logger("[AM-POS] iter: {}\tloss: {}\tacc_pos: {}".format(iter_, loss, acc))
@@ -113,6 +130,16 @@ def run_train():
                     [entity_model.loss, entity_model.accuracy, entity_model.preds, entity_model.targets],
                     feed_dict={handle: train_handle})
                 logger("[AM-Entities] iter: {}\tloss: {}\tacc_entity: {}".format(iter_, loss, acc))
+
+                loss, acc, preds, targets = sess.run(
+                    [dis_model.loss, dis_model.accuracy, dis_model.preds, dis_model.targets],
+                    feed_dict={handle: train_handle})
+                logger("[AM-Distances] iter: {}\tloss: {}\tacc_distance: {}".format(iter_, loss, acc))
+
+                loss, acc, preds, targets = sess.run(
+                    [rel_model.loss, rel_model.accuracy, rel_model.preds, rel_model.targets],
+                    feed_dict={handle: train_handle})
+                logger("[AM-Relations] iter: {}\tloss: {}\tacc_relation: {}".format(iter_, loss, acc))
 
                 data_set_test = get_dataset(os.path.join(TEST_DATA_NAME))
 
@@ -134,6 +161,7 @@ def run_train():
                 except tf.errors.OutOfRangeError:
                     logger("[AM-POS-Test] iter: {}\tacc_pos: {}\t[AM-Entities-Test]\tacc_entity: {}".
                            format(iter_, total_acc_pos/total_num, total_acc_entity/total_num))
+                acc = total_acc_entity/total_num
                 if acc > best_score:
                     best_score = acc
                     saver.save(sess, MODEL_PATH)

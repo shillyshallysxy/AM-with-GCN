@@ -29,6 +29,7 @@ WORD_DICT_NAME = "word_dict.pkl"
 EMBEDDING_NAME = "glove_embedding.npy"
 GLOVE = True
 LOWER = True
+CONSIDER_OTHER = False
 
 VECTOR_DIM = 200
 GLOVE_NAME = "glove.6B.{}d.txt".format(VECTOR_DIM)

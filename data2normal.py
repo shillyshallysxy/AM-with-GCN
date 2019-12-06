@@ -41,14 +41,9 @@ class DataSet:
 class EssayV2(DataSet):
     def __init__(self):
         super().__init__()
-        train_data, test_data = dl.load_essays(lower=LOWER)
-        train_texts, train_labels, train_labels_pos, train_relation_graph, train_node2pos, train_adj_graph = train_data
-        test_texts, test_labels, test_labels_pos, test_relation_graph, test_node2pos, test_adj_graph = test_data
-
-        del train_texts, test_texts, train_data, test_data
-
-        self.train_y = list(zip(train_labels, train_labels_pos, train_adj_graph))
-        self.test_y = list(zip(test_labels, test_labels_pos, test_adj_graph))
+        train_data, test_data = dl.load_essays(lower=LOWER, consider_other=CONSIDER_OTHER)
+        _, _, _, _, _, train_relation_graph, train_node2pos, train_adj_graph = train_data
+        _, _, _, _, _, test_relation_graph, test_node2pos, test_adj_graph = test_data
 
         self.train_others = list(zip(train_relation_graph, train_node2pos))
         self.test_others = list(zip(test_relation_graph, test_node2pos))
@@ -56,6 +51,7 @@ class EssayV2(DataSet):
         self.num_classes_entities = len(dl.entities) - 1
         self.num_classes_pos = len(dl.pos) - 1
         self.num_classes_relations = len(dl.relations) - 1
+        self.num_classes_distances = 1
         self.num_train_set = len(self.train_others)
 
 

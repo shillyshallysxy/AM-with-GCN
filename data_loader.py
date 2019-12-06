@@ -17,6 +17,7 @@ entities = {"PAD": 0, "MajorClaim": 1, "Claim": 2, "Premise": 3, "Other": 0}
 pos = {"PAD": 0, "Begin": 1, "Intermediate": 2, "End": 3, "Single": 4, "Other": 0}
 relations = {"PAD": 0, "supports": 1, "attacks": 2, "For": 3, "Against": 4, "Other": 0}
 attributes = {"PAD": 0, "Stance": 1, "Other": 0}
+distance = {"Other": 0}
 trans_table = {ord(f): ord(t) for f, t in zip(
      u'，。！？【】（）％＃＠＆１２３４５６７８９０‘’“”""',
      u',.!?[]()%#@&1234567890\'\'\'\'\'\'')}
@@ -98,7 +99,7 @@ def load_elecdeb60to16(data_path='data/stackoverflow/'):
     return XX, y
 
 
-def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
+def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=True, consider_other=True):
     detail_data_path = os.path.join(data_path, "brat-project-final")
     # 读取训练测试集分割
     train_test_split_path = os.path.join(data_path, "train-test-split.csv")
@@ -149,7 +150,9 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
         data_dict[k_]["node2pos_label_char"] = np.ones(len(v_["txt"][2]), dtype=np.int)*entities["Other"]
         data_dict[k_]["entities_label_word"] = np.ones(len(v_["txt"][0]), dtype=np.int)*entities["Other"]
         data_dict[k_]["node2pos_label_word"] = np.ones(len(v_["txt"][0]), dtype=np.int)*entities["Other"]
-        data_dict[k_]["entities_label_pos"] = np.ones(len(v_["txt"][0]), dtype=np.int)*entities["Other"]
+        data_dict[k_]["pos_label_word"] = np.ones(len(v_["txt"][0]), dtype=np.int)*pos["Other"]
+        data_dict[k_]["relation_label_word"] = np.ones(len(v_["txt"][0]), dtype=np.int)*relations["Other"]
+        data_dict[k_]["distance_label_word"] = np.ones(len(v_["txt"][0]), dtype=np.int)*distance["Other"]
         # 做字符集别的序列标注
         for a_k_, a_v_ in v_["ann"].items():
             if a_v_["type"] in entities:
@@ -196,33 +199,33 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
         # POS
         entities_labels_ = data_dict[k_]["entities_label_word"]
         if entities_labels_[0] == entities["Other"]:
-            data_dict[k_]["entities_label_pos"][0] = pos["Other"]
+            data_dict[k_]["pos_label_word"][0] = pos["Other"]
         else:
             if entities_labels_[0] != entities_labels_[1]:
-                data_dict[k_]["entities_label_pos"][0] = pos["Single"]
+                data_dict[k_]["pos_label_word"][0] = pos["Single"]
             else:
-                data_dict[k_]["entities_label_pos"][0] = pos["Begin"]
+                data_dict[k_]["pos_label_word"][0] = pos["Begin"]
         for ind_ in range(1, len(entities_labels_)-1):
             if entities_labels_[ind_] == entities["Other"]:
-                data_dict[k_]["entities_label_pos"][ind_] = pos["Other"]
+                data_dict[k_]["pos_label_word"][ind_] = pos["Other"]
             else:
                 if entities_labels_[ind_-1] != entities_labels_[ind_]:
                     if entities_labels_[ind_] != entities_labels_[ind_+1]:
-                        data_dict[k_]["entities_label_pos"][ind_] = pos["Single"]
+                        data_dict[k_]["pos_label_word"][ind_] = pos["Single"]
                     else:
-                        data_dict[k_]["entities_label_pos"][ind_] = pos["Begin"]
+                        data_dict[k_]["pos_label_word"][ind_] = pos["Begin"]
                 else:
                     if entities_labels_[ind_] != entities_labels_[ind_+1]:
-                        data_dict[k_]["entities_label_pos"][ind_] = pos["End"]
+                        data_dict[k_]["pos_label_word"][ind_] = pos["End"]
                     else:
-                        data_dict[k_]["entities_label_pos"][ind_] = pos["Intermediate"]
+                        data_dict[k_]["pos_label_word"][ind_] = pos["Intermediate"]
         if entities_labels_[-1] == entities["Other"]:
-            data_dict[k_]["entities_label_pos"][-1] = pos["Other"]
+            data_dict[k_]["pos_label_word"][-1] = pos["Other"]
         else:
             if entities_labels_[-1] != entities_labels_[-2]:
-                data_dict[k_]["entities_label_pos"][-1] = pos["Single"]
+                data_dict[k_]["pos_label_word"][-1] = pos["Single"]
             else:
-                data_dict[k_]["entities_label_pos"][-1] = pos["End"]
+                data_dict[k_]["pos_label_word"][-1] = pos["End"]
 
         # 构建节点对应文本位置
         prior_ind_ = 0
@@ -231,6 +234,11 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
 
         for ind_ in range(len(data_dict[k_]["node2pos_label_word"]) - 1):
             if data_dict[k_]["node2pos_label_word"][ind_] != data_dict[k_]["node2pos_label_word"][ind_ + 1]:
+                if not consider_other:
+                    if data_dict[k_]["node2pos_label_word"][ind_] == entities["Other"]:
+                        prior_ind_ = ind_ + 1
+                        continue
+
                 node2pos_key_ = len(data_dict[k_]["node2pos"])
                 data_dict[k_]["node2pos"][node2pos_key_] = (prior_ind_, ind_ + 1)
 
@@ -248,11 +256,20 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
         temp_data_ = list()
         temp_major_inds_ = list()
         for a_k_, a_v_ in v_["ann"].items():
+            # 如果是关系
             if a_v_["type"] in relations:
+                # 获得标注ID
                 from_ = int(a_v_["content"][0].replace("T", ""))
                 to_ = int(a_v_["content"][1].replace("T", ""))
+                # 转换为文本段ID
                 from_ = temp_trans_map[from_]
                 to_ = temp_trans_map[to_]
+                # 构建单词级别的关系标注
+                from_start_ind_, from_end_ind_ = data_dict[k_]["node2pos"][from_]
+                data_dict[k_]["relation_label_word"][from_start_ind_: from_end_ind_] = relations[a_v_["type"]]
+                # 构建单词级别的关系距离标注
+                data_dict[k_]["distance_label_word"][from_start_ind_: from_end_ind_] = to_ - from_
+                # 构建graph
                 relation_code_ = relations[a_v_["type"]]
                 if from_ not in data_dict[k_]["relation_graph"]:
                     data_dict[k_]["relation_graph"][from_] = list()
@@ -263,11 +280,22 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
             elif a_v_["type"] == "MajorClaim":
                 temp_major_inds_.append(temp_trans_map[int(a_k_.replace("T", ""))])
         for a_k_, a_v_ in v_["ann"].items():
+            # 如果是立场
             if a_v_["type"] in attributes:
                 from_ = int(a_v_["content"][0].replace("T", ""))
                 from_ = temp_trans_map[from_]
                 relation_code_ = relations[a_v_["content"][1]]
+                # 构建单词级别的关系标注
+                from_start_ind_, from_end_ind_ = data_dict[k_]["node2pos"][from_]
+                data_dict[k_]["relation_label_word"][from_start_ind_: from_end_ind_] = relation_code_
+                # 构建单词级别的关系距离标注
+                data_dict[k_]["distance_label_word"][from_start_ind_: from_end_ind_] = distance["Other"]
+                # 构建graph
                 for temp_major_ind_ in temp_major_inds_:
+                    if from_ not in data_dict[k_]["relation_graph"]:
+                        data_dict[k_]["relation_graph"][from_] = list()
+                    data_dict[k_]["relation_graph"][from_].append(temp_major_ind_)
+
                     temp_row_.append(from_)
                     temp_col_.append(temp_major_ind_)
                     temp_data_.append(relation_code_)
@@ -278,29 +306,37 @@ def load_essays(data_path="./data/ArgumentAnnotatedEssays-2.0", lower=False):
 
         # data_dict[k_]["adj_graph"] = nx.adjacency_matrix(data_dict[k_]["relation_graph"])
 
-    essays, essays_labels_word, essays_labels_pos = list(), list(), list()
+    essays, essays_labels_word, essays_labels_pos, essays_labels_relation, essays_labels_distance = \
+        list(), list(), list(), list(), list()
     essays_relation_graph, essays_node2pos, essays_adj_graph = list(), list(), list()
-    essays_test, essays_test_labels_word, essays_test_labels_pos = list(), list(), list()
+    essays_test, essays_test_labels_word, essays_test_labels_pos, essays_test_labels_relation, essays_test_labels_distance = \
+        list(), list(), list(), list(), list()
     essays_test_relation_graph, essays_test_node2pos, essays_test_adj_graph = list(), list(), list()
     for name_, essay_ in data_dict.items():
         if name_ in train_test_split["train"]:
             essays.append(essay_["txt"][0])
             essays_labels_word.append(essay_["entities_label_word"])
-            essays_labels_pos.append(essay_["entities_label_pos"])
+            essays_labels_pos.append(essay_["pos_label_word"])
+            essays_labels_relation.append(essay_["relation_label_word"])
+            essays_labels_distance.append(essay_["distance_label_word"])
+
             essays_relation_graph.append(essay_["relation_graph"])
             essays_node2pos.append(essay_["node2pos"])
             essays_adj_graph.append(essay_["adj_graph"])
         elif name_ in train_test_split["test"]:
             essays_test.append(essay_["txt"][0])
             essays_test_labels_word.append(essay_["entities_label_word"])
-            essays_test_labels_pos.append(essay_["entities_label_pos"])
+            essays_test_labels_pos.append(essay_["pos_label_word"])
+            essays_test_labels_relation.append(essay_["relation_label_word"])
+            essays_test_labels_distance.append(essay_["distance_label_word"])
+
             essays_test_relation_graph.append(essay_["relation_graph"])
             essays_test_node2pos.append(essay_["node2pos"])
             essays_test_adj_graph.append(essay_["adj_graph"])
 
-    return (essays, essays_labels_word, essays_labels_pos,
+    return (essays, essays_labels_word, essays_labels_pos, essays_labels_relation, essays_labels_distance,
             essays_relation_graph, essays_node2pos, essays_adj_graph), \
-           (essays_test, essays_test_labels_word, essays_test_labels_pos,
+           (essays_test, essays_test_labels_word, essays_test_labels_pos, essays_test_labels_relation, essays_test_labels_distance,
             essays_test_relation_graph, essays_test_node2pos, essays_test_adj_graph)
 
 
@@ -350,7 +386,7 @@ def parse_ann_content(ann_content: list, lower):
 
 
 if __name__ == "__main__":
-    load_essays()
+    load_essays(lower=LOWER, consider_other=CONSIDER_OTHER)
     #
     # t = u'中国，中文，标点符号！你好？１２３４５＠＃【】+=-（）‘”'
     # t2 = t.translate(trans_table)
