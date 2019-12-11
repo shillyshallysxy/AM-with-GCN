@@ -23,7 +23,12 @@ def run_train():
     with tf.Session() as sess:
         padding_shape = ([bert_config.max_length], [bert_config.max_length],
                          [bert_config.max_length], [bert_config.max_length],
-                         [bert_config.max_length], [bert_config.max_length])
+                         [bert_config.max_length], [bert_config.max_length],
+                         # ------------------------------------------------
+                         [MAX_LEN_NODE], [math.pow(MAX_LEN_NODE, 2)],
+                         [MAX_LEN_NODE], [MAX_LEN_NODE],
+                         [bert_config.max_length*bert_config.max_length])
+
         data_set_train = get_dataset(TRAIN_DATA_NAME)
         data_set_train = data_set_train.shuffle(bert_config.shuffle_pool_size).repeat(). \
             padded_batch(bert_config.batch_size, padded_shapes=padding_shape)
@@ -33,7 +38,8 @@ def run_train():
         handle = tf.placeholder(tf.string, shape=[])
         iterator = tf.data.Iterator.from_string_handle(handle, data_set_train.output_types,
                                                        data_set_train.output_shapes)
-        input_ids, input_mask, targets, targets_pos, targets_relation, targets_distance = iterator.get_next()
+        input_ids, input_mask, targets, targets_pos, targets_relation, targets_distance, \
+        node_mask, relation_graph, node2pos_l, node2pos_r, relation_graph_word = iterator.get_next()
 
         model = bm.BertModel(
             config=bert_config,
@@ -48,6 +54,10 @@ def run_train():
         transformer_second_output = model.get_all_encoder_layers()[1]
         transformer_third_output = model.get_all_encoder_layers()[2]
         transformer_output = model.get_sequence_output()
+        transformer_first_attention = model.get_all_attention_layers()[-1]  # B*H*N*N
+
+        atten_model = m.AttenModel2(bert_config)
+        atten_model(transformer_first_attention, relation_graph_word, input_mask)
 
         entity_model = m.POSModel(bert_config, data.num_classes_entities)
         entity_model(transformer_output, targets, input_mask)
@@ -62,11 +72,12 @@ def run_train():
         dis_model(transformer_third_output, targets_distance, input_mask)
 
         entities_weight = 1
-        pos_weight = 1
-        rel_weight = 1
-        dis_weight = 1
+        pos_weight = 0
+        rel_weight = 0
+        dis_weight = 0
+        atten_weight = 1
         joint_loss = pos_weight*pos_model.loss + entities_weight*entity_model.loss + \
-                     rel_weight*rel_model.loss + dis_weight*dis_model.loss
+                     rel_weight*rel_model.loss + dis_weight*dis_model.loss + atten_weight*atten_model.loss
 
         tvars = tf.trainable_variables()
         num_train_steps = int((data.num_train_set*bert_config.num_train_epochs)/bert_config.batch_size)
@@ -86,7 +97,7 @@ def run_train():
 
         if GLOVE:
             tf.assign(model.embedding_table, embedding)
-        if True:
+        if False:
             saver.restore(sess, MODEL_PATH)
             data_set_test = get_dataset(os.path.join(TEST_DATA_NAME))
 
@@ -96,26 +107,27 @@ def run_train():
             data_set_test_iter = data_set_test.make_one_shot_iterator()
             test_handle = sess.run(data_set_test_iter.string_handle())
 
-            ids, entity_labels, in_masks, attention_output = sess.run([input_ids, targets, input_mask,
-                                                             model.all_attention], feed_dict={handle: test_handle})
+            ids, entity_labels, in_masks, in_relation, node2posl, node2posr, attention_output = \
+                sess.run([input_ids, targets, input_mask, relation_graph, node2pos_l, node2pos_r, model.all_attention],
+                         feed_dict={handle: test_handle})
 
             show_inds = [0, 1]
             for show_ind in show_inds:
                 ids_ = ids[show_ind]
                 entity_labels_ = entity_labels[show_ind]
                 in_masks_ = in_masks[show_ind]
-                relation_graph = data.test_others[show_ind][0]
-                node2pos = data.test_others[show_ind][1]
-                assert (entity_labels_[:np.sum(in_masks_)] == data.test_y[show_ind]).all(), "数据必须匹配"
+                in_relation_ = in_relation[show_ind]
+                node2pos = list(zip(node2posl[show_ind], node2posr[show_ind]))
 
-                attention_output_ = np.array(attention_output)[1:, show_ind, :, :, :]
+                attention_output_ = np.array(attention_output)[0:, show_ind, :, :, :]
+
                 attention_output_ = np.mean(attention_output_, axis=-3)
                 for ind_, attention_output__ in enumerate(attention_output_):
                     pu.plot_attention(attention_output__, ids_, ids_, entity_labels_, in_masks_, word_dict,
-                                      node2pos=node2pos, relation_graph=relation_graph,
+                                      node2pos=node2pos, relation_graph=in_relation_,
                                       name="test_{}_attention_layer_{}.png".format(show_ind, ind_))
                 pu.plot_attention(attention_output_, ids_, ids_, entity_labels_, in_masks_, word_dict,
-                                  node2pos=node2pos, relation_graph=relation_graph,
+                                  node2pos=node2pos, relation_graph=in_relation_,
                                   name="test_{}attention_layer_avg.png".format(show_ind))
             exit()
 
@@ -124,7 +136,10 @@ def run_train():
 
         best_score = 0.
         for iter_ in range(num_train_steps):
-            # sess.run(pos_train_op, feed_dict={handle: train_handle})
+            if iter_ == 0:
+                a = sess.run(atten_model.relation_graph, feed_dict={handle: train_handle})
+                print(max(a[0]), min(a[0]))
+
             sess.run(joint_train_op, feed_dict={handle: train_handle})
 
             if iter_ % 10 == 0:
@@ -147,6 +162,11 @@ def run_train():
                     [rel_model.loss, rel_model.accuracy, rel_model.preds, rel_model.targets],
                     feed_dict={handle: train_handle})
                 logger("[AM-Relations] iter: {}\tloss: {}\tacc_relation: {}".format(iter_, loss, acc))
+
+                loss, = sess.run(
+                    [atten_model.loss],
+                    feed_dict={handle: train_handle})
+                logger("[AM-Atten] iter: {}\tloss: {}".format(iter_, loss))
 
                 data_set_test = get_dataset(os.path.join(TEST_DATA_NAME))
 
@@ -173,6 +193,7 @@ def run_train():
                     best_score = acc
                     saver.save(sess, MODEL_PATH)
                     logger("Saved at Score: {}".format(best_score))
+        saver.save(sess, MODEL_PATH)
         logger("Best Score: {}".format(best_score))
         logger("**** Training End ****")
 

@@ -5,13 +5,20 @@ import numpy as np
 import networkx as nx
 import os
 from HParameters import *
-
+import math
 unk_str = 'unk'
 
 
 def plot_attention(d, x_axis_token, y_axis_token, ac_label=None,
                    in_mask=None, word_dict=None,
                    node2pos=None, relation_graph=None, name=None):
+    if not isinstance(node2pos, dict):
+        temp_node2pos = dict()
+        for ind, ns in enumerate(node2pos):
+            if ns == (0, 0):
+                break
+            temp_node2pos[ind] = ns
+        node2pos = temp_node2pos
     word_dict = dict(zip(word_dict.values(), word_dict.keys()))
     method_name = "mean"
 
@@ -144,7 +151,12 @@ def show_attention_matrix_with_label(attention_matrix, col, index, relation_grap
     if relation_graph is not None:
         ax = fig.add_subplot(122)
         ax.grid(True)
-        relation_graph_np = nx.to_numpy_matrix(relation_graph, nodelist=np.arange(len(attention_matrix)))
+        if isinstance(relation_graph, nx.Graph):
+            relation_graph_np = nx.to_numpy_matrix(relation_graph, nodelist=np.arange(len(attention_matrix)))
+        else:
+            len_origin = int(math.sqrt(len(relation_graph)))
+            relation_graph_np = np.reshape(np.array(relation_graph), (len_origin, len_origin))
+            relation_graph_np = relation_graph_np[:len(col), :len(col)]
         df = pd.DataFrame(relation_graph_np, columns=col, index=index)
         cax = ax.matshow(df, interpolation='nearest', cmap='hot_r')
         # cax = ax.matshow(df)

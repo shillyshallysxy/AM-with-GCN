@@ -84,4 +84,5 @@ if __name__ == "__main__":
     # import pickle
     # with open(os.path.join(ROOT_PATH, WORD_DICT_NAME), 'wb') as f:
     #     pickle.dump(word_dict, f)
+    EssayV2()
     pass

@@ -107,6 +107,71 @@ class POSRegModel:
         return loss
 
 
+class AttenModel:
+    def __init__(self, config):
+        self.activation = None
+        self.hidden_dim = config.hidden_size
+        self.initializer_range = config.initializer_range
+        self.max_length = config.max_length_node
+        self.batch_size = config.batch_size
+        self.trans = None
+
+    def __call__(self, x, relation_graph, node_length, node2posl, node2posr):
+        x = tf.reduce_mean(x, axis=-3)  # B*N*N
+        node_length = tf.to_float(node_length)
+        relation_graph = tf.nn.softmax(tf.to_float(relation_graph), axis=-1)
+        total_x = list()
+        total_loss = list()
+        for ind in range(self.batch_size):
+            x_, l_, r_, relation_graph_, len_ = x[ind], node2posl[ind], node2posr[ind], relation_graph[ind], node_length[ind]
+            x_temp = list()
+            # relation_graph_ = tf.reshape(relation_graph_, [-1])
+            for ind_ in range(self.max_length):
+                l, r, lent = l_[ind_], r_[ind_], len_[ind_]
+                for ind__ in range(self.max_length):
+                    l__, r__, lent__ = l_[ind__], r_[ind__], len_[ind__]
+                    temp = tf.reduce_mean(x_[l:r, l__:r__]) * lent * lent__
+                    x_temp.append(temp)
+            x_temp = tf.to_float(x_temp)
+            total_loss.append(tf.reduce_mean(ms_error(relation_graph_, x_temp)))
+
+            total_x.append(x_temp)
+        self.loss = tf.add_n(total_loss)
+
+
+class AttenModel2:
+    def __init__(self, config):
+        self.activation = None
+        self.hidden_dim = config.hidden_size
+        self.initializer_range = config.initializer_range
+        self.max_length = config.max_length
+        self.batch_size = config.batch_size
+        self.trans = None
+
+    def __call__(self, x, relation_graph, sequence_length):
+        x = tf.reduce_mean(x, axis=-3)  # B*N*N
+        sequence_length = tf.expand_dims(tf.to_float(sequence_length), axis=1)
+        sequence_length = tf.tile(sequence_length, (1, self.max_length, 1))
+        adder = (1.0 - tf.cast(sequence_length, tf.float32)) * -10000.0
+        sequence_length = tf.reshape(sequence_length, [-1, self.max_length * self.max_length])
+        relation_graph = tf.to_float(relation_graph)
+        relation_graph = tf.reshape(relation_graph, [-1, self.max_length, self.max_length]) * 5
+        relation_graph += adder
+
+        relation_graph = tf.nn.softmax(relation_graph)
+        relation_graph = tf.reshape(relation_graph, [-1, self.max_length * self.max_length])
+
+        self.relation_graph = relation_graph
+        x = tf.reshape(x, [-1, self.max_length * self.max_length])
+        # self.loss = tf.reduce_sum(tf.multiply(ms_error(relation_graph, x), sequence_length))
+        self.loss = tf.reduce_mean(sequence_loss_by_example(
+            [tf.reshape(x, [-1], name='reshaped_input')],
+            [tf.reshape(relation_graph, [-1], name='reshaped_target')],
+            [tf.reshape(sequence_length, [-1], name='sequence_length')],
+            average_across_timesteps=True,
+            softmax_loss_function=tf.nn.softmax_cross_entropy_with_logits_v2,
+        ))
+
 def ms_error(labels, logits):
     return tf.square(tf.subtract(labels, logits))
 

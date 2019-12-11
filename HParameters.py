@@ -33,6 +33,7 @@ LOWER = True
 CONSIDER_OTHER = False
 
 VECTOR_DIM = 200
+MAX_LEN_NODE = 28
 GLOVE_NAME = "glove.6B.{}d.txt".format(VECTOR_DIM)
 
 logger = get_logger()
