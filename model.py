@@ -163,6 +163,7 @@ class AttenModel2:
 
         self.relation_graph = relation_graph
         x = tf.reshape(x, [-1, self.max_length * self.max_length])
+        x = tf.minimum(tf.subtract(x, relation_graph) + 1, 1.)
         # self.loss = tf.reduce_sum(tf.multiply(ms_error(relation_graph, x), sequence_length))
         self.loss = tf.reduce_mean(sequence_loss_by_example(
             [tf.reshape(x, [-1], name='reshaped_input')],

@@ -71,11 +71,13 @@ def run_train():
         dis_model = m.POSRegModel(bert_config, data.num_classes_distances)
         dis_model(transformer_third_output, targets_distance, input_mask)
 
-        entities_weight = 1
+        entities_weight = 0
         pos_weight = 0
         rel_weight = 0
         dis_weight = 0
         atten_weight = 1
+        logger("entities_weight: {}\tpos_weight: {}\trel_weight: {}\tdis_weight: {}\tatten_weight: {}".
+               format(entities_weight, pos_weight, rel_weight, dis_weight, atten_weight))
         joint_loss = pos_weight*pos_model.loss + entities_weight*entity_model.loss + \
                      rel_weight*rel_model.loss + dis_weight*dis_model.loss + atten_weight*atten_model.loss
 
@@ -99,7 +101,7 @@ def run_train():
             tf.assign(model.embedding_table, embedding)
         if False:
             saver.restore(sess, MODEL_PATH)
-            data_set_test = get_dataset(os.path.join(TEST_DATA_NAME))
+            data_set_test = get_dataset(os.path.join(TRAIN_DATA_NAME))
 
             data_set_test = data_set_test. \
                 padded_batch(bert_config.batch_size, padded_shapes=padding_shape)
@@ -133,7 +135,6 @@ def run_train():
 
         logger("**** Trainable Variables ****")
         # saver.restore(sess, MODEL_PATH)
-
         best_score = 0.
         for iter_ in range(num_train_steps):
             if iter_ == 0:
