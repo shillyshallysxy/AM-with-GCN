@@ -218,6 +218,9 @@ class BertModel(object):
 
       self.sequence_output = self.all_encoder_layers[-1]
       self.attention_output = self.all_attention[-1]
+      self.all_attention_probs = list()
+      for atten_temp in self.all_attention:
+          self.all_attention_probs.append(tf.nn.softmax(atten_temp))
       # The "pooler" converts the encoded sequence tensor of shape
       # [batch_size, seq_length, hidden_size] to a tensor of shape
       # [batch_size, hidden_size]. This is necessary for segment-level
@@ -253,6 +256,9 @@ class BertModel(object):
       to the final attention of the transformer encoder.
     """
     return self.all_attention[-1]
+
+  def get_sequence_attention_probs(self):
+    return tf.nn.softmax(self.all_attention[-1])
 
   def get_all_encoder_layers(self):
     return self.all_encoder_layers

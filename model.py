@@ -151,7 +151,9 @@ class AttenModel2:
     def __call__(self, x, relation_graph, sequence_length):
         x = tf.reduce_mean(x, axis=-3)  # B*N*N
         sequence_length = tf.expand_dims(tf.to_float(sequence_length), axis=1)
-        sequence_length = tf.tile(sequence_length, (1, self.max_length, 1))
+        # sequence_length = tf.tile(sequence_length, (1, self.max_length, 1))
+        sequence_length = tf.matmul(tf.transpose(sequence_length, [0, 2, 1]), sequence_length)
+
         adder = (1.0 - tf.cast(sequence_length, tf.float32)) * -10000.0
         sequence_length = tf.reshape(sequence_length, [-1, self.max_length * self.max_length])
         relation_graph = tf.to_float(relation_graph)
@@ -163,6 +165,7 @@ class AttenModel2:
 
         self.relation_graph = relation_graph
         x = tf.reshape(x, [-1, self.max_length * self.max_length])
+
         x = tf.minimum(tf.subtract(x, relation_graph) + 1, 1.)
         # self.loss = tf.reduce_sum(tf.multiply(ms_error(relation_graph, x), sequence_length))
         self.loss = tf.reduce_mean(sequence_loss_by_example(
@@ -170,11 +173,16 @@ class AttenModel2:
             [tf.reshape(relation_graph, [-1], name='reshaped_target')],
             [tf.reshape(sequence_length, [-1], name='sequence_length')],
             average_across_timesteps=True,
-            softmax_loss_function=tf.nn.softmax_cross_entropy_with_logits_v2,
+            softmax_loss_function=cross_entropy,
         ))
+
 
 def ms_error(labels, logits):
     return tf.square(tf.subtract(labels, logits))
+
+
+def cross_entropy(labels, logits):
+    return tf.reduce_sum(-tf.multiply(tf.log(logits), labels))
 
 
 def sequence_loss_by_example(logits,

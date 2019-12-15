@@ -52,15 +52,15 @@ def run_train():
 
         transformer_first_output = model.get_all_encoder_layers()[0]
         transformer_second_output = model.get_all_encoder_layers()[1]
-        transformer_third_output = model.get_all_encoder_layers()[2]
+        transformer_third_output = model.get_all_encoder_layers()[0]
         transformer_output = model.get_sequence_output()
-        transformer_first_attention = model.get_all_attention_layers()[-1]  # B*H*N*N
+        transformer_first_attention = model.get_all_attention_layers()[0]  # B*H*N*N
 
         atten_model = m.AttenModel2(bert_config)
         atten_model(transformer_first_attention, relation_graph_word, input_mask)
 
         entity_model = m.POSModel(bert_config, data.num_classes_entities)
-        entity_model(transformer_output, targets, input_mask)
+        entity_model(transformer_second_output, targets, input_mask)
 
         pos_model = m.POSModel(bert_config, data.num_classes_pos)
         pos_model(transformer_first_output, targets_pos, input_mask)
@@ -71,11 +71,11 @@ def run_train():
         dis_model = m.POSRegModel(bert_config, data.num_classes_distances)
         dis_model(transformer_third_output, targets_distance, input_mask)
 
-        entities_weight = 0
+        entities_weight = 1
         pos_weight = 0
         rel_weight = 0
         dis_weight = 0
-        atten_weight = 1
+        atten_weight = 0
         logger("entities_weight: {}\tpos_weight: {}\trel_weight: {}\tdis_weight: {}\tatten_weight: {}".
                format(entities_weight, pos_weight, rel_weight, dis_weight, atten_weight))
         joint_loss = pos_weight*pos_model.loss + entities_weight*entity_model.loss + \
@@ -110,7 +110,8 @@ def run_train():
             test_handle = sess.run(data_set_test_iter.string_handle())
 
             ids, entity_labels, in_masks, in_relation, node2posl, node2posr, attention_output = \
-                sess.run([input_ids, targets, input_mask, relation_graph, node2pos_l, node2pos_r, model.all_attention],
+                sess.run([input_ids, targets, input_mask, relation_graph, node2pos_l, node2pos_r,
+                          model.all_attention],
                          feed_dict={handle: test_handle})
 
             show_inds = [0, 1]
