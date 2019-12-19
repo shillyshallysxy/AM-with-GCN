@@ -52,15 +52,15 @@ def run_train():
 
         transformer_first_output = model.get_all_encoder_layers()[0]
         transformer_second_output = model.get_all_encoder_layers()[1]
-        transformer_third_output = model.get_all_encoder_layers()[0]
+        transformer_third_output = model.get_all_encoder_layers()[2]
         transformer_output = model.get_sequence_output()
-        transformer_first_attention = model.get_all_attention_layers()[0]  # B*H*N*N
+        transformer_first_attention = model.get_all_attention_layers()[1]  # B*H*N*N
 
         atten_model = m.AttenModel2(bert_config)
         atten_model(transformer_first_attention, relation_graph_word, input_mask)
 
         entity_model = m.POSModel(bert_config, data.num_classes_entities)
-        entity_model(transformer_second_output, targets, input_mask)
+        entity_model(transformer_output, targets, input_mask)
 
         pos_model = m.POSModel(bert_config, data.num_classes_pos)
         pos_model(transformer_first_output, targets_pos, input_mask)
@@ -75,7 +75,7 @@ def run_train():
         pos_weight = 0
         rel_weight = 0
         dis_weight = 0
-        atten_weight = 0
+        atten_weight = 1
         logger("entities_weight: {}\tpos_weight: {}\trel_weight: {}\tdis_weight: {}\tatten_weight: {}".
                format(entities_weight, pos_weight, rel_weight, dis_weight, atten_weight))
         joint_loss = pos_weight*pos_model.loss + entities_weight*entity_model.loss + \
@@ -99,9 +99,9 @@ def run_train():
 
         if GLOVE:
             tf.assign(model.embedding_table, embedding)
-        if False:
+        if True:
             saver.restore(sess, MODEL_PATH)
-            data_set_test = get_dataset(os.path.join(TRAIN_DATA_NAME))
+            data_set_test = get_dataset(os.path.join(TEST_DATA_NAME))
 
             data_set_test = data_set_test. \
                 padded_batch(bert_config.batch_size, padded_shapes=padding_shape)
@@ -181,15 +181,31 @@ def run_train():
                 total_acc_pos = 0
                 total_acc_entity = 0
                 total_num = 0
+                entity_preds = list()
+                entity_targets = list()
+                node2pos = list()
                 try:
                     while True:
-                        tacc_pos, tacc_entity = sess.run([pos_model.accuracy, entity_model.accuracy], {handle: test_handle})
+                        tacc_pos, tacc_entity, temp_entity_preds, temp_entity_targets, node2posl, node2posr \
+                            = sess.run([pos_model.accuracy, entity_model.accuracy,
+                                        entity_model.preds, entity_model.targets,
+                                        node2pos_l, node2pos_r],
+                                       {handle: test_handle})
                         total_acc_pos += tacc_pos
                         total_acc_entity += tacc_entity
                         total_num += 1
+                        entity_preds.append(temp_entity_preds)
+                        entity_targets.append(temp_entity_targets)
+                        node2pos.extend([list(zip(node2posl[ind_], node2posr[ind_])) for ind_ in range(len(node2posl))])
                 except tf.errors.OutOfRangeError:
+                    entity_preds = np.concatenate(entity_preds, axis=0)
+                    entity_targets = np.concatenate(entity_targets, axis=0)
+                    pre, rec, f1 = \
+                        pu.compute_f1_token_basis(entity_targets, entity_preds, 0)
+                    logger("level alpha matching pre: {}\t f1:{}".format(pre, f1))
                     logger("[AM-POS-Test] iter: {}\tacc_pos: {}\t[AM-Entities-Test]\tacc_entity: {}".
                            format(iter_, total_acc_pos/total_num, total_acc_entity/total_num))
+
                 acc = total_acc_entity/total_num
                 if acc > best_score:
                     best_score = acc

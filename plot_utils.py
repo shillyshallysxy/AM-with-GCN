@@ -4,6 +4,7 @@ import matplotlib.ticker as ticker
 import numpy as np
 import networkx as nx
 import os
+import sklearn
 from HParameters import *
 import math
 unk_str = 'unk'
@@ -186,5 +187,80 @@ def softmax(matrix: np.ndarray, axis=-1):
     denominator = np.sum(np.exp(matrix), axis, keepdims=True)
     return np.exp(matrix) / denominator
 
+
+# TODO(shilly): level alpha matching won't work, need fix
+def level_alpha_matching(labels, preds, node2pos, alpha=1.):
+    assert alpha <= 1., "alpha should not be lager than 1"
+    if not isinstance(node2pos, dict):
+        temp_node2pos = dict()
+        for ind, ns in enumerate(node2pos):
+            if ns == (0, 0):
+                break
+            temp_node2pos[ind] = ns
+        node2pos = temp_node2pos
+    score = 0
+    ac_level_labels = list()
+    ac_level_preds = list()
+    for pos in node2pos.values():
+        prior_ind_, ind_ = pos
+        a_score = np.mean(np.equal(labels[prior_ind_: ind_], preds[prior_ind_: ind_]))
+        if a_score >= alpha:
+            score += 1
+            ac_level_preds.append(1)
+        else:
+            ac_level_preds.append(0)
+        ac_level_labels.append(1)
+    return score, len(node2pos), ac_level_preds, ac_level_labels
+
+
+def batch_level_alpha_matching(labels, preds, node2poss, alpha=1.):
+    score, n = 0., 0.
+    ac_level_preds, ac_level_labels = list(), list()
+    for label, target, node2pos in zip(labels, preds, node2poss):
+        temp_score, temp_n, temp_ac_level_preds, temp_ac_level_labels = level_alpha_matching(label, target, node2pos, alpha)
+        score += temp_score
+        n += temp_n
+        ac_level_preds.extend(temp_ac_level_preds)
+        ac_level_labels.extend(temp_ac_level_labels)
+    return score / n, sklearn.metrics.f1_score(ac_level_labels, ac_level_preds)
+
+
+def compute_f1_token_basis(predictions, correct, O_Label=0):
+    prec = compute_precision_token_basis(predictions, correct, O_Label)
+    rec = compute_precision_token_basis(correct, predictions, O_Label)
+
+    f1 = 0
+    if (rec + prec) > 0:
+        f1 = 2.0 * prec * rec / (prec + rec)
+
+    return prec, rec, f1
+
+
+def compute_precision_token_basis(guessed_sentences, correct_sentences, O_Label):
+    assert (len(guessed_sentences) == len(correct_sentences))
+    correctCount = 0
+    count = 0
+
+    for sentenceIdx in range(len(guessed_sentences)):
+        guessed = guessed_sentences[sentenceIdx]
+        correct = correct_sentences[sentenceIdx]
+        assert (len(guessed) == len(correct))
+        for idx in range(len(guessed)):
+
+            if guessed[idx] != O_Label:
+                count += 1
+
+                if guessed[idx] == correct[idx]:
+                    correctCount += 1
+
+    precision = 0
+    if count > 0:
+        precision = float(correctCount) / count
+
+    return precision
+
+
+if __name__ == "__main__":
+    pass
 
 

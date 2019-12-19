@@ -7,7 +7,7 @@
   "intermediate_size": 400,
   "max_position_embeddings": 560,
   "num_attention_heads": 8,
-  "num_hidden_layers": 2,
+  "num_hidden_layers": 4,
   "type_vocab_size": 2,
   "vocab_size": 7826,
   "batch_size": 32,
