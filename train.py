@@ -13,7 +13,7 @@ tf.disable_v2_behavior()
 bert_config = bm.BertConfig.from_json_file(BERT_CONFIG_PATH)  # 配置文件地址。
 
 
-def run_train():
+def run_train_pos():
     if GLOVE:
         embedding = np.load(os.path.join(ROOT_PATH, EMBEDDING_NAME))
         bert_config.vocab_size = embedding.shape[0]
@@ -217,7 +217,7 @@ def run_train():
 
 
 if __name__ == "__main__":
-    run_train()
+    run_train_pos()
 
 
 

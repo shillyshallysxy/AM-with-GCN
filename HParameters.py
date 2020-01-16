@@ -39,3 +39,4 @@ GLOVE_NAME = "glove.6B.{}d.txt".format(VECTOR_DIM)
 logger = get_logger()
 # logger = print
 
+

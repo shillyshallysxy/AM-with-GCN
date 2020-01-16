@@ -54,9 +54,12 @@ def load_glove(filename=GLOVE_NAME):
 
 
 if __name__ == "__main__":
-    trans_to_gensim_from_glove(GLOVE_NAME, vector_dim=VECTOR_DIM)
+    # trans_to_gensim_from_glove(GLOVE_NAME, vector_dim=VECTOR_DIM)
     # model = load_glove()
     # print(model.vocab["the"])
     # print(model["the"])
     #
     # print(model.vocab["unk"])
+    a = ["asdsa"]
+    gensim.models.word2vec
+    print(1)
